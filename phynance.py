@@ -69,13 +69,14 @@ ideal_return = strategy.ewma_strategy(inputData[0,train_len:train_len+test_len],
 #print time.clock()-t0
 
 #set RNN parameters
-learn_factor = 1.0e-6
+learn_factor = 5.e-4
+ema_factor = 0.8
 mem_cells = [10]
-iterations = 10000
+iterations = 100000
 x_dim = x_list.shape[1]
 y_dim = x_dim
 layer_dims = [x_dim]+mem_cells+[y_dim]
-lstm_net = lstm.LstmNetwork(layer_dims)
+lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
 
 #build plots
 f,axarr = plt.subplots(5)
@@ -84,7 +85,7 @@ axarr[2].set_yscale('log',nonposy='clip')
 axarr[2].plot(inputData[:,:(train_len+test_len)].T)
 
 loss_list = list()
-learnRate = list()
+#learnRate = list()
 return_list = list()
 loss_list.append(np.zeros(y_dim))
 lost_list_ave=100
@@ -106,11 +107,10 @@ for cur_iter in range(iterations):
     print 'train time: ', time.clock() - t0
     
     t2 = time.clock()
-#    loss_diff=np.abs(loss_list[-1]-loss_list[-2])/loss_list[-1]
-    loss_diff=np.ma.average(np.abs(np.diff(loss_list[-lost_list_ave:],axis=0)/loss_list[-1]),weights=maweights)
-    learnRate.append(np.clip(learn_factor/loss_diff,0.,learnRateLim))
+#    loss_diff=np.ma.average(np.abs(np.diff(loss_list[-lost_list_ave:],axis=0)/loss_list[-1]),weights=maweights)
+#    learnRate.append(np.clip(learn_factor/loss_diff,0.,learnRateLim))
     for lstm_param in lstm_net.lstm_params:
-        lstm_param.apply_diff(lr=learnRate[-1])
+        lstm_param.apply_diff()
     print 'apply time: ', time.clock() - t2
     
     t3 = time.clock()
@@ -120,7 +120,7 @@ for cur_iter in range(iterations):
     return_list.append([ideal_return, strategy.ewma_strategy(inputData[0,train_len:train_len+test_len],outdata[-test_len:,0])[-1]])
     print 'return time: ', time.clock() - t3
 
-    if cur_iter%50==0:
+    if cur_iter%500==0:
         axarr[0].cla()
         axarr[1].cla()
         axarr[3].cla()
@@ -133,11 +133,11 @@ for cur_iter in range(iterations):
         predList = rescale(scaleFactorAY, scaleFactorBY, outdata)
         axarr[0].plot(predList)
         axarr[1].plot(np.array(loss_list)[lost_list_ave:])
-        axarr[3].plot(np.array(learnRate))
+#        axarr[3].plot(np.array(learnRate))
         axarr[4].plot(return_list)
         plt.pause(0.01)
         
     lstm_net.x_list_clear()
     print 'totaltime', time.clock() - t1
     print "loss: ", loss_list[-1]
-    print 'learnRate: ', learnRate[-1]
+#    print 'learnRate: ', learnRate[-1]
