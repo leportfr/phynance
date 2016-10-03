@@ -4,14 +4,16 @@ import gDot
 import gOuter
 import sys
 
+np.random.seed(0)
+
 def sigmoid(x):
     return 1. / (1 + np.exp(-x))
 
 # create uniform random array w/ values in [a,b) and shape args
 def rand_arr(*args): 
-    a=0.5
-    b=-0.5
-    np.random.seed(0)
+    a = 1/np.sqrt(args[-1]+1)
+    b = -a
+#    print a
     return np.random.rand(*args) * (b - a) + a
     
 def loss_func(pred, label):
@@ -21,9 +23,11 @@ def bottom_diff(pred, label):
     return 2 * (pred - label)
     
 class OutParam:
-    def __init__(self, out_dim, in_dim):
+    def __init__(self, out_dim, in_dim, learn_rate, ema_rate):
         self.out_dim = out_dim
         self.in_dim = in_dim
+        self.learn_rate = learn_rate
+        self.ema_rate = ema_rate
         # weight matrices        
         self.wy = rand_arr(out_dim, in_dim)
         # bias terms
@@ -31,17 +35,43 @@ class OutParam:
         # diffs (derivative of loss function w.r.t. all parameters)
         self.wy_diff = np.zeros((out_dim, in_dim))
         self.by_diff = np.zeros(out_dim)
+        # emas of diffs
+        self.wy_diff_ema = np.zeros((out_dim, in_dim))
+        self.by_diff_ema = np.zeros(out_dim)
+        
+        self.wy_diff_ema2 = np.zeros((out_dim, in_dim)) + learn_rate
+        self.by_diff_ema2 = np.zeros(out_dim) + learn_rate
+        #learning rates
+        self.wy_lr = np.zeros((out_dim, in_dim)) + learn_rate
+        self.by_lr = np.zeros(out_dim) + learn_rate
         
     def apply_diff(self, lr = 1):
-        self.wy -= lr * self.wy_diff
-        self.by -= lr * self.by_diff  
+        #update ema2s
+        self.wy_diff_ema2 *= self.ema_rate
+        self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff
+        self.by_diff_ema2 *= self.ema_rate
+        self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff
+        #update learn rates        
+        self.wy_lr *= np.clip(1.0 + self.learn_rate * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2,0.5,100.0)
+        self.by_lr *= np.clip(1.0 + self.learn_rate * self.by_diff * self.by_diff_ema / self.by_diff_ema2,0.5,100.0)
+        #update emas
+        self.wy_diff_ema *= self.ema_rate
+        self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
+        self.by_diff_ema *= self.ema_rate
+        self.by_diff_ema += (1. - self.ema_rate) * self.by_diff
+        #update weights        
+        self.wy -= self.wy_lr * self.wy_diff
+        self.by -= self.by_lr * self.by_diff  
+        # reset diffs to zero
         self.wy_diff = np.zeros_like(self.wy) 
         self.by_diff = np.zeros_like(self.by)
         
 class LstmParam:
-    def __init__(self, out_dim, in_dim):
+    def __init__(self, out_dim, in_dim, learn_rate, ema_rate):
         self.out_dim = out_dim
         self.in_dim = in_dim
+        self.learn_rate = learn_rate
+        self.ema_rate = ema_rate
         # weight matrices
         self.wg = rand_arr(out_dim, in_dim+out_dim)
         self.wi = rand_arr(out_dim, in_dim+out_dim) 
@@ -70,17 +100,88 @@ class LstmParam:
         self.bi_tdiff = np.zeros(out_dim) 
         self.bf_tdiff = np.zeros(out_dim) 
         self.bo_tdiff = np.zeros(out_dim)
-
-    def apply_diff(self, lr = 1):
-        self.wg -= lr * self.wg_diff
-        self.wi -= lr * self.wi_diff
-        self.wf -= lr * self.wf_diff
-        self.wo -= lr * self.wo_diff
+        # emas of diffs
+        self.wg_diff_ema = np.zeros((out_dim, in_dim+out_dim)) 
+        self.wi_diff_ema = np.zeros((out_dim, in_dim+out_dim)) 
+        self.wf_diff_ema = np.zeros((out_dim, in_dim+out_dim)) 
+        self.wo_diff_ema = np.zeros((out_dim, in_dim+out_dim))
+        self.bg_diff_ema = np.zeros(out_dim) 
+        self.bi_diff_ema = np.zeros(out_dim) 
+        self.bf_diff_ema = np.zeros(out_dim) 
+        self.bo_diff_ema = np.zeros(out_dim)
         
-        self.bg -= lr * self.bg_diff
-        self.bi -= lr * self.bi_diff
-        self.bf -= lr * self.bf_diff
-        self.bo -= lr * self.bo_diff
+        self.wg_diff_ema2 = np.zeros((out_dim, in_dim+out_dim)) + learn_rate
+        self.wi_diff_ema2 = np.zeros((out_dim, in_dim+out_dim)) + learn_rate 
+        self.wf_diff_ema2 = np.zeros((out_dim, in_dim+out_dim)) + learn_rate 
+        self.wo_diff_ema2 = np.zeros((out_dim, in_dim+out_dim)) + learn_rate
+        self.bg_diff_ema2 = np.zeros(out_dim) + learn_rate 
+        self.bi_diff_ema2 = np.zeros(out_dim) + learn_rate 
+        self.bf_diff_ema2 = np.zeros(out_dim) + learn_rate 
+        self.bo_diff_ema2 = np.zeros(out_dim) + learn_rate
+        # learning rates
+        self.wg_lr = np.zeros((out_dim, in_dim+out_dim)) + learn_rate
+        self.wi_lr = np.zeros((out_dim, in_dim+out_dim)) + learn_rate
+        self.wf_lr = np.zeros((out_dim, in_dim+out_dim)) + learn_rate
+        self.wo_lr = np.zeros((out_dim, in_dim+out_dim)) + learn_rate
+        self.bg_lr = np.zeros(out_dim) + learn_rate
+        self.bi_lr = np.zeros(out_dim) + learn_rate
+        self.bf_lr = np.zeros(out_dim) + learn_rate
+        self.bo_lr = np.zeros(out_dim) + learn_rate        
+
+    def apply_diff(self):
+        #update ema2s
+        self.wg_diff_ema2 *= self.ema_rate
+        self.wg_diff_ema2 += (1. - self.ema_rate) * self.wg_diff * self.wg_diff
+        self.wi_diff_ema2 *= self.ema_rate
+        self.wi_diff_ema2 += (1. - self.ema_rate) * self.wi_diff * self.wi_diff
+        self.wf_diff_ema2 *= self.ema_rate
+        self.wf_diff_ema2 += (1. - self.ema_rate) * self.wf_diff * self.wf_diff
+        self.wo_diff_ema2 *= self.ema_rate
+        self.wo_diff_ema2 += (1. - self.ema_rate) * self.wo_diff * self.wo_diff
+        self.bg_diff_ema2 *= self.ema_rate
+        self.bg_diff_ema2 += (1. - self.ema_rate) * self.bg_diff * self.bg_diff
+        self.bi_diff_ema2 *= self.ema_rate
+        self.bi_diff_ema2 += (1. - self.ema_rate) * self.bi_diff * self.bi_diff
+        self.bf_diff_ema2 *= self.ema_rate
+        self.bf_diff_ema2 += (1. - self.ema_rate) * self.bf_diff * self.bf_diff
+        self.bo_diff_ema2 *= self.ema_rate
+        self.bo_diff_ema2 += (1. - self.ema_rate) * self.bo_diff * self.bo_diff
+        #update learn rates        
+        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.5,100.0)
+        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.5,100.0)
+        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.5,100.0)
+        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.5,100.0)
+        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.5,100.0)
+        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.5,100.0)
+        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.5,100.0)
+        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.5,100.0)
+#        print 'amax', np.amax([np.amax([self.wg_lr, self.wi_lr, self.wf_lr, self.wo_lr]),np.amax([self.bg_lr, self.bi_lr, self.bf_lr, self.bo_lr])])
+        #update emas
+        self.wg_diff_ema *= self.ema_rate
+        self.wg_diff_ema += (1. - self.ema_rate) * self.wg_diff
+        self.wi_diff_ema *= self.ema_rate
+        self.wi_diff_ema += (1. - self.ema_rate) * self.wi_diff
+        self.wf_diff_ema *= self.ema_rate
+        self.wf_diff_ema += (1. - self.ema_rate) * self.wf_diff
+        self.wo_diff_ema *= self.ema_rate
+        self.wo_diff_ema += (1. - self.ema_rate) * self.wo_diff
+        self.bg_diff_ema *= self.ema_rate
+        self.bg_diff_ema += (1. - self.ema_rate) * self.bg_diff
+        self.bi_diff_ema *= self.ema_rate
+        self.bi_diff_ema += (1. - self.ema_rate) * self.bi_diff
+        self.bf_diff_ema *= self.ema_rate
+        self.bf_diff_ema += (1. - self.ema_rate) * self.bf_diff
+        self.bo_diff_ema *= self.ema_rate
+        self.bo_diff_ema += (1. - self.ema_rate) * self.bo_diff
+        #update weights
+        self.wg -= self.wg_lr * self.wg_diff
+        self.wi -= self.wi_lr * self.wi_diff
+        self.wf -= self.wf_lr * self.wf_diff
+        self.wo -= self.wo_lr * self.wo_diff  
+        self.bg -= self.bg_lr * self.bg_diff
+        self.bi -= self.bi_lr * self.bi_diff
+        self.bf -= self.bf_lr * self.bf_diff
+        self.bo -= self.bo_lr * self.bo_diff
         # reset diffs to zero
         self.wg_diff = np.zeros_like(self.wg)
         self.wi_diff = np.zeros_like(self.wi) 
@@ -201,14 +302,14 @@ class LstmNode:
 #        print 'top_diff_is 4', time.clock() - t0
 
 class LstmNetwork():
-    def __init__(self, layer_dims):
+    def __init__(self, layer_dims, learn_rate, ema_rate):
         # layer_dims represents dimensions of all layers, where [0] is x_dim and [-1] is y_dim
         self.num_layers = len(layer_dims)
         self.lstm_params = list()
-        self.lstm_params.append(LstmParam(layer_dims[1], layer_dims[0]))
+        self.lstm_params.append(LstmParam(layer_dims[1], layer_dims[0], learn_rate, ema_rate))
         for lyr in range(self.num_layers-3):
-            self.lstm_params.append(LstmParam(layer_dims[lyr+2], layer_dims[lyr+1]))
-        self.lstm_params.append(OutParam(layer_dims[-1], layer_dims[-2]))
+            self.lstm_params.append(LstmParam(layer_dims[lyr+2], layer_dims[lyr+1], learn_rate, ema_rate))
+        self.lstm_params.append(OutParam(layer_dims[-1], layer_dims[-2], learn_rate, ema_rate))
         self.lstm_node_list = []
         self.out_node_list = []
         # input sequence
