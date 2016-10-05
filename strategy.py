@@ -34,8 +34,8 @@ def ideal_strategy(stock_price, sdol=1.0e5, bidask=0.005, com=9.99):
         changePoints=changePoints[1:]
     elif changePoints[0,1]==-1:
         changePoints=np.concatenate(([[0,1]],changePoints))
-    print stock_price
-    print shifts
+#    print stock_price
+#    print shifts
     
     dollars=sdol
     shares=0  
@@ -48,13 +48,13 @@ def ideal_strategy(stock_price, sdol=1.0e5, bidask=0.005, com=9.99):
     for i in range(len(changePoints)/2):
         pos1=changePoints[2*i,0]+1
         pos2=changePoints[2*i+1,0]+1
-        print pos1, pos2
+#        print pos1, pos2
         orgdollars=dollars
         shares=int((dollars-com)/(stock_price[pos1]*askmul))
         dollars-=shares*(stock_price[pos1]*askmul)+com
         dollars+=shares*(stock_price[pos2]*bidmul)-com
         if orgdollars>dollars:
-            print 'skip',pos1
+#            print 'skip',pos1
             dollars=orgdollars
         else:
             buySellList.append(pos1)

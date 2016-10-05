@@ -6,6 +6,7 @@ import lstm
 import time
 import strategy
 import cPickle as pickle
+import sys
 
 def scale(a,b,x):
     return (a*(x.T-b)-0.8).T
@@ -16,7 +17,7 @@ def rescale(a,b,y):
 #locate data files
 curdir = os.path.dirname(__file__)
 datadir = os.path.join(curdir, 'Data/quantquote_daily_sp500_83986/daily')
-filelist = os.listdir(datadir)[1:20]
+filelist = os.listdir(datadir)[1:2]
 
 #load stock data
 sp500dict = {}
@@ -54,25 +55,24 @@ x_list_test = scaledData[train_len:train_len+test_len]
 #y_list_full = scale(scaleFactorY, np.zeros_like(scaleFactorY), np.array(reward_list)).T
 #y_list_train = y_list_full[:len(x_list)]
 
-scaledData_frame = pd.DataFrame(inputData.T[::-1])
-averaged_data = scaledData_frame.ewm(halflife=5).mean()[::-1]
-dv_data = averaged_data.diff()[1:]
-y_list_full = np.array(dv_data[:len(x_list)+len(x_list_test)]).T
-scaleFactorBY=np.min(y_list_full,axis=1)
-scaleFactorAY=1.6/(np.max(y_list_full,axis=1)-scaleFactorBY)
-y_list_full = scale(scaleFactorAY, scaleFactorBY, y_list_full).T
+(ideal_return, buySellList) = strategy.ideal_strategy(inputData[0])
+y_list_full = np.zeros((train_len+test_len,1))
+mult=1
+for i in buySellList:
+    if i<train_len+test_len:
+        y_list_full[i] = mult
+        mult*=-1
+
+scaleFactorBY=np.min(y_list_full,axis=0)
+scaleFactorAY=1.6/(np.max(y_list_full,axis=0)-scaleFactorBY)
+y_list_full = scale(scaleFactorAY, scaleFactorBY, y_list_full)
 y_list_train = y_list_full[:len(x_list)]
 rescaled_data=rescale(scaleFactorAY, scaleFactorBY, y_list_full)
 
-#t0 = time.clock()
-#print strategy.ewma_strategy(inputData[0],rescale(scaleFactorAY, scaleFactorBY, y_list_full)[:,0])[-1]
-ideal_return = strategy.ewma_strategy(inputData[0,train_len:train_len+test_len],rescaled_data[-test_len:,0])[-1]
-#print time.clock()-t0
-
 #set RNN parameters
-learn_factor = 2.e-4
+learn_factor = 30.e-4
 ema_factor = 0.5
-mem_cells = [100,100]
+mem_cells = [10]
 iterations = 100000
 x_dim = x_list.shape[1]
 y_dim = x_dim
@@ -81,7 +81,7 @@ lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
 
 #build plots
 f,axarr = plt.subplots(5)
-f.canvas.set_window_title('lf=2.e-4,[100,100],500 hist,20stocks')
+f.canvas.set_window_title('lf=30.e-4,[10],500 hist,strategyOut')
 plt.ion()
 axarr[2].set_yscale('log',nonposy='clip')
 axarr[2].plot(inputData[:,:(train_len+test_len)].T)
@@ -122,7 +122,7 @@ for cur_iter in range(iterations):
     for val in x_list_test:
         lstm_net.x_list_add(val)
     outdata=lstm_net.getOutData()
-    return_list.append([ideal_return, strategy.ewma_strategy(inputData[0,train_len:train_len+test_len],outdata[-test_len:,0])[-1]])
+#    return_list.append([ideal_return, strategy.ewma_strategy(inputData[0,train_len:train_len+test_len],outdata[-test_len:,0])[-1]])
     print 'return time: ', time.clock() - t3
 
     if cur_iter%500==0:
@@ -139,7 +139,7 @@ for cur_iter in range(iterations):
         axarr[0].plot(predList)
         axarr[1].plot(np.array(loss_list)[lost_list_ave:])
 #        axarr[3].plot(np.array(learnRate))
-        axarr[4].plot(return_list)
+#        axarr[4].plot(return_list)
         plt.pause(0.01)
         
     lstm_net.x_list_clear()
