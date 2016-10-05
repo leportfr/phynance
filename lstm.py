@@ -7,6 +7,9 @@ import sys
 np.random.seed(0)
 
 def sigmoid(x):
+#    if any(x<-100):
+#        print 'xvals',x
+#        sys.exit()
     return 1. / (1 + np.exp(-x))
 
 # create uniform random array w/ values in [a,b) and shape args
@@ -66,6 +69,9 @@ class OutParam:
         self.wy_diff = np.zeros_like(self.wy) 
         self.by_diff = np.zeros_like(self.by)
         
+    def getParams(self):
+        return (self.wy, self.by)
+        
 class LstmParam:
     def __init__(self, out_dim, in_dim, learn_rate, ema_rate):
         self.out_dim = out_dim
@@ -80,7 +86,7 @@ class LstmParam:
         # bias terms
         self.bg = rand_arr(out_dim) 
         self.bi = rand_arr(out_dim) 
-        self.bf = rand_arr(out_dim) 
+        self.bf = rand_arr(out_dim) + 2.0 
         self.bo = rand_arr(out_dim) 
         # diffs (derivative of loss function w.r.t. all parameters)
         self.wg_diff = np.zeros((out_dim, in_dim+out_dim)) 
@@ -131,30 +137,30 @@ class LstmParam:
     def apply_diff(self):
         #update ema2s
         self.wg_diff_ema2 *= self.ema_rate
-        self.wg_diff_ema2 += (1. - self.ema_rate) * self.wg_diff * self.wg_diff
+        self.wg_diff_ema2 += (1. - self.ema_rate) * self.wg_diff * self.wg_diff + 1.e-6
         self.wi_diff_ema2 *= self.ema_rate
-        self.wi_diff_ema2 += (1. - self.ema_rate) * self.wi_diff * self.wi_diff
+        self.wi_diff_ema2 += (1. - self.ema_rate) * self.wi_diff * self.wi_diff + 1.e-6
         self.wf_diff_ema2 *= self.ema_rate
-        self.wf_diff_ema2 += (1. - self.ema_rate) * self.wf_diff * self.wf_diff
+        self.wf_diff_ema2 += (1. - self.ema_rate) * self.wf_diff * self.wf_diff + 1.e-6
         self.wo_diff_ema2 *= self.ema_rate
-        self.wo_diff_ema2 += (1. - self.ema_rate) * self.wo_diff * self.wo_diff
+        self.wo_diff_ema2 += (1. - self.ema_rate) * self.wo_diff * self.wo_diff + 1.e-6
         self.bg_diff_ema2 *= self.ema_rate
-        self.bg_diff_ema2 += (1. - self.ema_rate) * self.bg_diff * self.bg_diff
+        self.bg_diff_ema2 += (1. - self.ema_rate) * self.bg_diff * self.bg_diff + 1.e-6
         self.bi_diff_ema2 *= self.ema_rate
-        self.bi_diff_ema2 += (1. - self.ema_rate) * self.bi_diff * self.bi_diff
+        self.bi_diff_ema2 += (1. - self.ema_rate) * self.bi_diff * self.bi_diff + 1.e-6
         self.bf_diff_ema2 *= self.ema_rate
-        self.bf_diff_ema2 += (1. - self.ema_rate) * self.bf_diff * self.bf_diff
+        self.bf_diff_ema2 += (1. - self.ema_rate) * self.bf_diff * self.bf_diff + 1.e-6
         self.bo_diff_ema2 *= self.ema_rate
-        self.bo_diff_ema2 += (1. - self.ema_rate) * self.bo_diff * self.bo_diff
+        self.bo_diff_ema2 += (1. - self.ema_rate) * self.bo_diff * self.bo_diff + 1.e-6
         #update learn rates        
-        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.5,100.0)
-        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.5,100.0)
-        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.5,100.0)
-        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.5,100.0)
-        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.5,100.0)
-        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.5,100.0)
-        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.5,100.0)
-        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.5,100.0)
+        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.5,200.0)
+        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.5,200.0)
+        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.5,200.0)
+        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.5,200.0)
+        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.5,200.0)
+        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.5,200.0)
+        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.5,200.0)
+        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.5,200.0)
 #        print 'amax', np.amax([np.amax([self.wg_lr, self.wi_lr, self.wf_lr, self.wo_lr]),np.amax([self.bg_lr, self.bi_lr, self.bf_lr, self.bo_lr])])
         #update emas
         self.wg_diff_ema *= self.ema_rate
@@ -192,6 +198,9 @@ class LstmParam:
         self.bf_diff = np.zeros_like(self.bf) 
         self.bo_diff = np.zeros_like(self.bo)
         
+    def getParams(self):
+        return (self.wg, self.wi, self.wf, self.wo, self.bg, self.bi, self.bf, self.bo)
+        
 class OutState:
     def __init__(self, out_dim, in_dim):
         self.y = np.zeros(out_dim)
@@ -204,6 +213,7 @@ class LstmState:
         self.f = np.zeros(out_dim)
         self.o = np.zeros(out_dim)
         self.s = np.zeros(out_dim)
+        self.tanhs = np.zeros(out_dim)
         self.h = np.zeros(out_dim)
         self.bottom_diff_h = np.zeros_like(self.h)
         self.bottom_diff_s = np.zeros_like(self.s)
@@ -251,7 +261,8 @@ class LstmNode:
         self.state.i = sigmoid(np.dot(self.param.wi, inptc) + self.param.bi)
         self.state.f = sigmoid(np.dot(self.param.wf, inptc) + self.param.bf)
         self.state.o = sigmoid(np.dot(self.param.wo, inptc) + self.param.bo)
-        self.state.tanhs = np.tanh(self.state.g * self.state.i + s_prev * self.state.f)
+        self.state.s = self.state.g * self.state.i + s_prev * self.state.f
+        self.state.tanhs = np.tanh(self.state.s)
         self.state.h = self.state.tanhs * self.state.o
 #        self.state.h = self.state.s * self.state.o
 
@@ -380,12 +391,14 @@ class LstmNetwork():
         # get index of most recent x input
         idx = len(self.x_list) - 1
         if idx == 0:
+#            print 'idx', idx
             # no recurrent inputs yet
             self.lstm_node_list[idx][0].bottom_data_is(x, np.zeros_like(self.lstm_node_list[idx][0].state.s), np.zeros_like(self.lstm_node_list[idx][0].state.h))
             for lyr in range(self.num_layers-3):
                 self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, np.zeros_like(self.lstm_node_list[idx][lyr+1].state.s), np.zeros_like(self.lstm_node_list[idx][lyr+1].state.h))
             self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h)
         else:
+#            print 'idx', idx
             s_prevs=list()
             h_prevs=list()
             for lyr in range(self.num_layers-2):
@@ -402,4 +415,10 @@ class LstmNetwork():
         for outNode in self.out_node_list:
             outData.append(outNode.state.y)
         return np.array(outData)
+        
+    def getParams(self):
+        paramlist=list()
+        for lstm_param in self.lstm_params:
+            paramlist.append(lstm_param.getParams())
+        return paramlist
 
