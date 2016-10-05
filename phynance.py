@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import lstm
 import time
 import strategy
+import cPickle as pickle
 
 def scale(a,b,x):
     return (a*(x.T-b)-0.8).T
@@ -15,7 +16,7 @@ def rescale(a,b,y):
 #locate data files
 curdir = os.path.dirname(__file__)
 datadir = os.path.join(curdir, 'Data/quantquote_daily_sp500_83986/daily')
-filelist = os.listdir(datadir)[1:2]
+filelist = os.listdir(datadir)[1:20]
 
 #load stock data
 sp500dict = {}
@@ -29,7 +30,7 @@ print sp500
 df = sp500.loc[:,:,'close'].dropna()
 
 #build and scale input and output arrays
-train_len = 300
+train_len = 500
 test_len = 100
 inputData = np.array(df).T[:,-2*(train_len+test_len):]
 #inputDataDiff = np.array(df.diff()[1:]).T[:,-2*(train_len+test_len):]
@@ -69,9 +70,9 @@ ideal_return = strategy.ewma_strategy(inputData[0,train_len:train_len+test_len],
 #print time.clock()-t0
 
 #set RNN parameters
-learn_factor = 5.e-4
-ema_factor = 0.8
-mem_cells = [10]
+learn_factor = 2.e-4
+ema_factor = 0.5
+mem_cells = [100,100]
 iterations = 100000
 x_dim = x_list.shape[1]
 y_dim = x_dim
@@ -80,6 +81,7 @@ lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
 
 #build plots
 f,axarr = plt.subplots(5)
+f.canvas.set_window_title('lf=2.e-4,[100,100],500 hist,20stocks')
 plt.ion()
 axarr[2].set_yscale('log',nonposy='clip')
 axarr[2].plot(inputData[:,:(train_len+test_len)].T)
@@ -93,6 +95,9 @@ learnRateLim=0.25
 loss_list*=lost_list_ave
 maweights=np.exp(-np.arange(lost_list_ave-1)[::-1]/30.0)
 #learnRate.append(0.05)
+
+#outfile = 'C:\Users\leportfr\Desktop\Phynance\outPickle'
+#openfile = open(outfile, 'wb')
 
 for cur_iter in range(iterations):
     t1 = time.clock()
@@ -138,6 +143,8 @@ for cur_iter in range(iterations):
         plt.pause(0.01)
         
     lstm_net.x_list_clear()
+#    pickle.dump(lstm_net.getParams(), openfile)
     print 'totaltime', time.clock() - t1
     print "loss: ", loss_list[-1]
+#openfile.close()
 #    print 'learnRate: ', learnRate[-1]
