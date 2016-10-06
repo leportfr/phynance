@@ -61,3 +61,26 @@ def ideal_strategy(stock_price, sdol=1.0e5, bidask=0.005, com=9.99):
             buySellList.append(pos2)
     
     return (dollars,buySellList)
+    
+def trade(stock_price, trades, sdol=1.0e5, bidask=0.005, com=9.99):
+    dollars=sdol
+    shares=0
+    value=list()   
+    
+    askmul=1.0+bidask/2.0
+    bidmul=1.0-bidask/2.0
+    
+    for i,sp in enumerate(stock_price):
+        if trades[i] > 0.5:
+            newshares=int((dollars-com)/(stock_price[i]*askmul))
+            shares+=newshares
+#            print 'if', shares, dollars
+            dollars-=newshares*(stock_price[i]*askmul)+com
+        elif trades[i] < -0.5:
+            dollars+=shares*(stock_price[i]*bidmul)-com
+#            print 'elif', shares, dollars
+            shares=0
+        value.append(dollars+shares*stock_price[i])
+#        print 'out', shares, dollars, value[-1], stock_price[i]
+    
+    return value

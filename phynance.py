@@ -34,10 +34,11 @@ df = sp500.loc[:,:,'close'].dropna()
 train_len = 500
 test_len = 100
 inputData = np.array(df).T[:,-2*(train_len+test_len):]
+inputDataDiff = np.diff(inputData,axis=1)
 #inputDataDiff = np.array(df.diff()[1:]).T[:,-2*(train_len+test_len):]
-scaleFactorB=np.min(inputData,axis=1)
-scaleFactorA=1.6/(np.max(inputData,axis=1)-scaleFactorB)
-scaledData = scale(scaleFactorA, scaleFactorB, inputData).T
+scaleFactorB=np.min(inputDataDiff,axis=1)
+scaleFactorA=1.6/(np.max(inputDataDiff,axis=1)-scaleFactorB)
+scaledData = scale(scaleFactorA, scaleFactorB, inputDataDiff).T
 #scaledData = inputData.T
 x_list = scaledData[:train_len]
 x_list_test = scaledData[train_len:train_len+test_len]
@@ -55,7 +56,7 @@ x_list_test = scaledData[train_len:train_len+test_len]
 #y_list_full = scale(scaleFactorY, np.zeros_like(scaleFactorY), np.array(reward_list)).T
 #y_list_train = y_list_full[:len(x_list)]
 
-(ideal_return, buySellList) = strategy.ideal_strategy(inputData[0])
+(ideal_return, buySellList) = strategy.ideal_strategy(inputData[0,1:(train_len+test_len)+1])
 y_list_full = np.zeros((train_len+test_len,1))
 mult=1
 for i in buySellList:
@@ -70,7 +71,7 @@ y_list_train = y_list_full[:len(x_list)]
 rescaled_data=rescale(scaleFactorAY, scaleFactorBY, y_list_full)
 
 #set RNN parameters
-learn_factor = 30.e-4
+learn_factor = 10.e-4
 ema_factor = 0.5
 mem_cells = [10]
 iterations = 100000
@@ -81,7 +82,7 @@ lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
 
 #build plots
 f,axarr = plt.subplots(5)
-f.canvas.set_window_title('lf=30.e-4,[10],500 hist,strategyOut')
+f.canvas.set_window_title('lf=10.e-4,[10],500 hist,strategyOutDiffIn')
 plt.ion()
 axarr[2].set_yscale('log',nonposy='clip')
 axarr[2].plot(inputData[:,:(train_len+test_len)].T)
@@ -122,7 +123,7 @@ for cur_iter in range(iterations):
     for val in x_list_test:
         lstm_net.x_list_add(val)
     outdata=lstm_net.getOutData()
-#    return_list.append([ideal_return, strategy.ewma_strategy(inputData[0,train_len:train_len+test_len],outdata[-test_len:,0])[-1]])
+    return_list.append([ideal_return, strategy.trade(inputData[0,train_len+1:(train_len+test_len)+1],outdata[-test_len:,0])[-1]])
     print 'return time: ', time.clock() - t3
 
     if cur_iter%500==0:
@@ -139,7 +140,7 @@ for cur_iter in range(iterations):
         axarr[0].plot(predList)
         axarr[1].plot(np.array(loss_list)[lost_list_ave:])
 #        axarr[3].plot(np.array(learnRate))
-#        axarr[4].plot(return_list)
+        axarr[4].plot(return_list)
         plt.pause(0.01)
         
     lstm_net.x_list_clear()
