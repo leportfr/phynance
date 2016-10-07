@@ -333,9 +333,9 @@ class LstmNetwork():
         Will *NOT* update parameters.  To update parameters,
         call self.lstm_param.apply_diff()
         """
-        assert len(y_list) == len(self.x_list)
+        assert len(y_list) <= len(self.x_list)
         # here s is not affecting loss due to h(t+1), hence we set equal to zero
-        idx = len(self.x_list) - 1
+        idx = len(y_list) - 1
         # calculate loss from out_node and backpropagate
         loss = loss_func(self.out_node_list[idx].state.y, y_list[idx])
         diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idx]) 
