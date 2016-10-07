@@ -56,13 +56,14 @@ x_list_test = scaledData[train_len:train_len+test_len]
 #y_list_full = scale(scaleFactorY, np.zeros_like(scaleFactorY), np.array(reward_list)).T
 #y_list_train = y_list_full[:len(x_list)]
 
-(ideal_return, buySellList) = strategy.ideal_strategy(inputData[0,1:(train_len+test_len)+1])
+(ideal_return_full, buySellList) = strategy.ideal_strategy(inputData[0,1:(train_len+test_len)+1])
 y_list_full = np.zeros((train_len+test_len,1))
 mult=1
 for i in buySellList:
     if i<train_len+test_len:
         y_list_full[i] = mult
-        mult*=-1
+#        mult*=-1
+ideal_return = strategy.trade_abs(inputData[0,train_len+1:(train_len+test_len)+1],y_list_full[-test_len:,0])[-1]
 
 scaleFactorBY=np.min(y_list_full,axis=0)
 scaleFactorAY=1.6/(np.max(y_list_full,axis=0)-scaleFactorBY)
@@ -73,7 +74,7 @@ rescaled_data=rescale(scaleFactorAY, scaleFactorBY, y_list_full)
 #set RNN parameters
 learn_factor = 10.e-4
 ema_factor = 0.5
-mem_cells = [10]
+mem_cells = [40,40,40]
 iterations = 100000
 x_dim = x_list.shape[1]
 y_dim = x_dim
@@ -81,8 +82,9 @@ layer_dims = [x_dim]+mem_cells+[y_dim]
 lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
 
 #build plots
-f,axarr = plt.subplots(5)
-f.canvas.set_window_title('lf=10.e-4,[10],500 hist,strategyOutDiffIn')
+f,axarr = plt.subplots(4)
+plt.get_current_fig_manager().window.showMaximized()
+f.canvas.set_window_title('lf=10.e-4,[40,40,40],500 hist,strategyOutAbsDiffIn')
 plt.ion()
 axarr[2].set_yscale('log',nonposy='clip')
 axarr[2].plot(inputData[:,:(train_len+test_len)].T)
@@ -123,14 +125,13 @@ for cur_iter in range(iterations):
     for val in x_list_test:
         lstm_net.x_list_add(val)
     outdata=lstm_net.getOutData()
-    return_list.append([ideal_return, strategy.trade(inputData[0,train_len+1:(train_len+test_len)+1],outdata[-test_len:,0])[-1]])
+    return_list.append([ideal_return, strategy.trade_abs(inputData[0,train_len+1:(train_len+test_len)+1],outdata[-test_len:,0])[-1]])
     print 'return time: ', time.clock() - t3
 
     if cur_iter%500==0:
         axarr[0].cla()
         axarr[1].cla()
         axarr[3].cla()
-        axarr[4].cla()
 #        axarr[0].set_yscale('log',nonposy='clip')
         axarr[1].set_yscale('log',nonposy='clip')
         axarr[3].set_yscale('log',nonposy='clip')
@@ -140,7 +141,7 @@ for cur_iter in range(iterations):
         axarr[0].plot(predList)
         axarr[1].plot(np.array(loss_list)[lost_list_ave:])
 #        axarr[3].plot(np.array(learnRate))
-        axarr[4].plot(return_list)
+        axarr[3].plot(return_list)
         plt.pause(0.01)
         
     lstm_net.x_list_clear()
