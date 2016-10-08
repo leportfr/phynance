@@ -75,7 +75,7 @@ rescaled_data=rescale(scaleFactorAY, scaleFactorBY, y_list_full)
 #set RNN parameters
 learn_factor = 10.e-4
 ema_factor = 0.5
-mem_cells = [40,40,40]
+mem_cells = [10]
 iterations = 100000
 x_dim = x_list.shape[1]
 y_dim = x_dim
@@ -84,11 +84,23 @@ lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
 
 #build plots
 f,axarr = plt.subplots(4)
+#plt.ion()
+axarr[1].set_yscale('log',nonposy='clip')
+axarr[3].set_yscale('log',nonposy='clip')
+axarr[0].set_xlim([0,train_len+test_len])
+axarr[0].set_ylim([0,1])
+axarr[0].plot(rescaled_data)
+axarr[3].plot(inputData[:,:(train_len+test_len)].T)
+graphs=list()
+graphs.append(axarr[0].plot(np.zeros_like(rescaled_data)+1.0,animated=True)[0])
+graphs.append(axarr[1].plot(np.zeros_like(rescaled_data)+1.0,animated=True)[0])
+graphs.append(axarr[2].plot(np.zeros_like(rescaled_data)+1.0,animated=True)[0])
+plt.show()
+plt.draw()
 plt.get_current_fig_manager().window.showMaximized()
-f.canvas.set_window_title('lf=10.e-4,[40,40,40],500 hist,strategyOutAbsDiffIn,scalerange=2')
-plt.ion()
-axarr[2].set_yscale('log',nonposy='clip')
-axarr[2].plot(inputData[:,:(train_len+test_len)].T)
+f.canvas.set_window_title('lf=10.e-4,[10],500 hist,strategyOutAbsDiffIn,scalerange=2')
+plt.pause(0.01)
+backgrounds = [f.canvas.copy_from_bbox(ax.bbox) for ax in axarr]
 
 loss_list = list()
 #learnRate = list()
@@ -111,7 +123,8 @@ for cur_iter in range(iterations):
     for val in x_list_test:
         lstm_net.x_list_add(val)
     outdata=lstm_net.getOutData()
-    return_list.append([ideal_return, strategy.trade_abs(inputData[0,train_len+1:(train_len+test_len)+1],outdata[-test_len:,0])[-1]])
+    predList = rescale(scaleFactorAY, scaleFactorBY, outdata)
+    return_list.append(strategy.trade_abs(inputData[0,train_len+1:(train_len+test_len)+1],outdata[-test_len:,0])[-1])
 #        print "y_pred[%d] : %f" % (ind, lstm_net.out_node_list[ind].state.y)
     print 'add x_val time: ', time.clock() - t1  
     
@@ -126,19 +139,29 @@ for cur_iter in range(iterations):
         lstm_param.apply_diff()
     print 'apply time: ', time.clock() - t2
 
-    if cur_iter%500==0:
-        axarr[0].cla()
-        axarr[1].cla()
-        axarr[3].cla()
-#        axarr[0].set_yscale('log',nonposy='clip')
-        axarr[1].set_yscale('log',nonposy='clip')
-#        axarr[3].set_yscale('log',nonposy='clip')
-        axarr[0].plot(rescaled_data)
-        predList = rescale(scaleFactorAY, scaleFactorBY, outdata)
-        axarr[0].plot(predList)
-        axarr[1].plot(np.array(loss_list))#[lost_list_ave:])
-        axarr[3].plot(return_list)
-        plt.pause(0.01)
+    axes_update_period=50
+    if cur_iter%axes_update_period==0:
+        plt.pause(0.001)
+        axarr[1].set_xlim([0,len(loss_list)+axes_update_period])
+        axarr[1].set_ylim([1,10.**(int(np.amax(np.log10(loss_list)))+1)])
+        axarr[2].set_xlim([0,len(return_list)+axes_update_period])
+        axarr[2].set_ylim([np.amin(return_list),np.amax([np.amax(return_list),ideal_return])])
+
+    if cur_iter%5==0:
+        t3 = time.clock()
+        f.canvas.restore_region(backgrounds[0])
+        graphs[0].set_ydata(predList)
+        axarr[0].draw_artist(graphs[0])
+        f.canvas.blit(axarr[0].bbox)
+        f.canvas.restore_region(backgrounds[1])
+        graphs[1].set_data(range(cur_iter+1),loss_list)
+        axarr[1].draw_artist(graphs[1])
+        f.canvas.blit(axarr[1].bbox)
+        f.canvas.restore_region(backgrounds[1])
+        graphs[2].set_data(range(cur_iter+1),return_list)
+        axarr[2].draw_artist(graphs[2])
+        f.canvas.blit(axarr[2].bbox)
+        print 'draw time: ', time.clock() - t3
         
     lstm_net.x_list_clear()
 #    pickle.dump(lstm_net.getParams(), openfile)
