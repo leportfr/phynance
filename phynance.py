@@ -44,7 +44,7 @@ scaleFactorB=np.min(inputDataDiff,axis=1)
 scaleFactorA=scalerange/(np.max(inputDataDiff,axis=1)-scaleFactorB)
 scaledData = scale(scaleFactorA, scaleFactorB, inputDataDiff).T
 #scaledData = inputData.T
-x_list = np.reshape(scaledData[:train_len],[num_training_sets,train_len,1])
+x_list = np.reshape(scaledData[:train_len].T,[num_training_sets,train_len,1])
 x_list_test = np.reshape(scaledData[train_len:train_len+test_len],[num_training_sets,test_len,1])
 
 (ideal_return_full, buySellList) = zip(*[strategy.ideal_strategy(inpt[-(train_len+test_len):]) for inpt in inputData])
@@ -59,13 +59,13 @@ ideal_return = [strategy.trade(inputData[i,-test_len:],y_list_full[i,-test_len:]
 scaleFactorBY=np.min(y_list_full,axis=1)
 scaleFactorAY=scalerange/(np.max(y_list_full,axis=1)-scaleFactorBY)
 y_list_full = scale(scaleFactorAY, scaleFactorBY, y_list_full).T
-y_list_train = np.reshape(y_list_full[:train_len],[num_training_sets,train_len,1])
-rescaled_data = np.reshape(rescale(scaleFactorAY, scaleFactorBY, y_list_full),[num_training_sets,len(y_list_full),1])
+y_list_train = np.reshape(y_list_full[:train_len].T,[num_training_sets,train_len,1])
+rescaled_data = np.reshape(rescale(scaleFactorAY, scaleFactorBY, y_list_full).T,[num_training_sets,len(y_list_full),1])
 
 #set RNN parameters
 learn_factor = 10.e-4
 ema_factor = 0.5
-mem_cells = [20,20,20]
+mem_cells = [20,20]
 iterations = int(1e6)
 x_dim = 1#x_list.shape[1]
 y_dim = x_dim
@@ -89,7 +89,7 @@ graphs.append(axarr[2].plot(np.zeros_like(rescaled_data[0])+1.0,animated=True)[0
 plt.show()
 plt.draw()
 plt.get_current_fig_manager().window.showMaximized()
-f.canvas.set_window_title('lf=10.e-4,[20,20,20],500 hist,strategyOutDiffIn,10_train_sets')
+f.canvas.set_window_title('lf=10.e-4,[20,20],500 hist,strategyOutDiffIn,10_train_sets')
 plt.pause(0.01)
 backgrounds = [f.canvas.copy_from_bbox(ax.bbox) for ax in axarr]
 
