@@ -7,8 +7,9 @@ import time
 import strategy
 import cPickle as pickle
 import sys
+from random import randint
 
-scalerange=2.0
+scalerange=1.6
 def scale(a,b,x):
     return (a*(x.T-b)-scalerange/2.0).T
     
@@ -32,52 +33,41 @@ print sp500
 df = sp500.loc[:,:,'close'].dropna()
 
 #build and scale input and output arrays
-train_len = 500
+train_len = 365
 test_len = 100
-inputData = np.array(df).T[:,-2*(train_len+test_len):]
+
+num_training_sets=10
+inputData = np.array([np.array(df).T[0,i*300:i*300+train_len+test_len+1] for i in range(num_training_sets)])
 inputDataDiff = np.diff(inputData,axis=1)
 #inputDataDiff = np.array(df.diff()[1:]).T[:,-2*(train_len+test_len):]
 scaleFactorB=np.min(inputDataDiff,axis=1)
 scaleFactorA=scalerange/(np.max(inputDataDiff,axis=1)-scaleFactorB)
 scaledData = scale(scaleFactorA, scaleFactorB, inputDataDiff).T
 #scaledData = inputData.T
-x_list = scaledData[:train_len]
-x_list_test = scaledData[train_len:train_len+test_len]
+x_list = np.reshape(scaledData[:train_len],[num_training_sets,train_len,1])
+x_list_test = np.reshape(scaledData[train_len:train_len+test_len],[num_training_sets,test_len,1])
 
-#reward_list = x_list[1:]
-#x_list = x_list[:-1]
-
-#hzn = 14
-#reward_list = list()
-#for i in range(len(x_list)+len(x_list_test)):
-#    reward_list.append(np.max(inputData.T[i:i+hzn,:],axis=0)-inputData.T[i,:])
-#reward_list = np.array(reward_list).T
-#scaleFactorAY=0.6/np.max(reward_list,axis=1)
-#scaleFactorBY=np.zeros_like(scaleFactorAY)
-#y_list_full = scale(scaleFactorY, np.zeros_like(scaleFactorY), np.array(reward_list)).T
-#y_list_train = y_list_full[:len(x_list)]
-
-(ideal_return_full, buySellList) = strategy.ideal_strategy(inputData[0,1:(train_len+test_len)+1])
-y_list_full = np.zeros((train_len+test_len,1))
+(ideal_return_full, buySellList) = zip(*[strategy.ideal_strategy(inpt[-(train_len+test_len):]) for inpt in inputData])
+y_list_full = np.zeros([num_training_sets,train_len+test_len])
 mult=1
-for i in buySellList:
-    if i<train_len+test_len:
-        y_list_full[i] = mult
-#        mult*=-1
-ideal_return = strategy.trade_abs(inputData[0,train_len+1:(train_len+test_len)+1],y_list_full[-test_len:,0])[-1]
+for j,sublist in enumerate(buySellList):
+    for i in sublist:
+        y_list_full[j,i] = mult
+        mult*=-1
+ideal_return = [strategy.trade(inputData[i,-test_len:],y_list_full[i,-test_len:])[-1] for i in range(num_training_sets)]
 
-scaleFactorBY=np.min(y_list_full,axis=0)
-scaleFactorAY=scalerange/(np.max(y_list_full,axis=0)-scaleFactorBY)
-y_list_full = scale(scaleFactorAY, scaleFactorBY, y_list_full)
-y_list_train = y_list_full[:len(x_list)]
-rescaled_data=rescale(scaleFactorAY, scaleFactorBY, y_list_full)
+scaleFactorBY=np.min(y_list_full,axis=1)
+scaleFactorAY=scalerange/(np.max(y_list_full,axis=1)-scaleFactorBY)
+y_list_full = scale(scaleFactorAY, scaleFactorBY, y_list_full).T
+y_list_train = np.reshape(y_list_full[:train_len],[num_training_sets,train_len,1])
+rescaled_data = np.reshape(rescale(scaleFactorAY, scaleFactorBY, y_list_full),[num_training_sets,len(y_list_full),1])
 
 #set RNN parameters
 learn_factor = 10.e-4
 ema_factor = 0.5
-mem_cells = [10]
-iterations = 100000
-x_dim = x_list.shape[1]
+mem_cells = [20,20,20]
+iterations = int(1e6)
+x_dim = 1#x_list.shape[1]
 y_dim = x_dim
 layer_dims = [x_dim]+mem_cells+[y_dim]
 lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
@@ -88,21 +78,25 @@ f,axarr = plt.subplots(4)
 axarr[1].set_yscale('log',nonposy='clip')
 axarr[3].set_yscale('log',nonposy='clip')
 axarr[0].set_xlim([0,train_len+test_len])
-axarr[0].set_ylim([0,1])
-axarr[0].plot(rescaled_data)
-axarr[3].plot(inputData[:,:(train_len+test_len)].T)
+axarr[0].set_ylim([-1,1])
+axarr[3].plot(inputData[:,-(train_len+test_len):].T)
 graphs=list()
-graphs.append(axarr[0].plot(np.zeros_like(rescaled_data)+1.0,animated=True)[0])
-graphs.append(axarr[1].plot(np.zeros_like(rescaled_data)+1.0,animated=True)[0])
-graphs.append(axarr[2].plot(np.zeros_like(rescaled_data)+1.0,animated=True)[0])
+graphs.append(axarr[0].plot(np.zeros_like(rescaled_data[0])+1.0,animated=True)[0])
+graphs.append(axarr[0].plot(np.zeros_like(rescaled_data[0])+1.0,animated=True)[0])
+for i in range(num_training_sets):
+    graphs.append(axarr[1].plot(np.zeros_like(rescaled_data[0])+1.0,animated=True)[0])
+graphs.append(axarr[2].plot(np.zeros_like(rescaled_data[0])+1.0,animated=True)[0])
 plt.show()
 plt.draw()
 plt.get_current_fig_manager().window.showMaximized()
-f.canvas.set_window_title('lf=10.e-4,[10],500 hist,strategyOutAbsDiffIn,scalerange=2')
+f.canvas.set_window_title('lf=10.e-4,[20,20,20],500 hist,strategyOutDiffIn,10_train_sets')
 plt.pause(0.01)
 backgrounds = [f.canvas.copy_from_bbox(ax.bbox) for ax in axarr]
 
 loss_list = list()
+for i in range(num_training_sets):
+    loss_list.append(list())
+    loss_list[-1].append([100.])
 #learnRate = list()
 return_list = list()
 #loss_list.append(np.zeros(y_dim))
@@ -116,20 +110,22 @@ return_list = list()
 #openfile = open(outfile, 'wb')
 
 for cur_iter in range(iterations):
+    train_set = randint(0,num_training_sets-1)   
+    
     t1 = time.clock()
-    print '\ncur iter: ', cur_iter
-    for val in x_list:
+    print '\ncur iter: ', cur_iter, train_set
+    for val in x_list[train_set]:
         lstm_net.x_list_add(val)
-    for val in x_list_test:
+    for val in x_list_test[train_set]:
         lstm_net.x_list_add(val)
     outdata=lstm_net.getOutData()
-    predList = rescale(scaleFactorAY, scaleFactorBY, outdata)
-    return_list.append(strategy.trade_abs(inputData[0,train_len+1:(train_len+test_len)+1],outdata[-test_len:,0])[-1])
+    predList = rescale(scaleFactorAY[train_set], scaleFactorBY[train_set], outdata)
+    return_list.append((strategy.trade(inputData[train_set,-test_len:],outdata[-test_len:,0])[-1]-1.e5)/(ideal_return[train_set]-1.e5))
 #        print "y_pred[%d] : %f" % (ind, lstm_net.out_node_list[ind].state.y)
     print 'add x_val time: ', time.clock() - t1  
     
     t0 = time.clock()
-    loss_list.append(lstm_net.y_list_is(y_list_train))
+    loss_list[train_set].append(lstm_net.y_list_is(y_list_train[train_set]))
     print 'train time: ', time.clock() - t0
     
     t2 = time.clock()
@@ -142,30 +138,35 @@ for cur_iter in range(iterations):
     axes_update_period=50
     if cur_iter%axes_update_period==0:
         plt.pause(0.001)
-        axarr[1].set_xlim([0,len(loss_list)+axes_update_period])
-        axarr[1].set_ylim([1,10.**(int(np.amax(np.log10(loss_list)))+1)])
-        axarr[2].set_xlim([0,len(return_list)+axes_update_period])
-        axarr[2].set_ylim([np.amin(return_list),np.amax([np.amax(return_list),ideal_return])])
+        axarr[1].set_xlim([0,cur_iter/num_training_sets+axes_update_period])
+        axarr[1].set_ylim([1,10.**(int(np.amax([np.amax(np.log10(loss_list[i])) for i in range(num_training_sets)]))+1)])
+        axarr[2].set_xlim([0,cur_iter+axes_update_period])
+        axarr[2].set_ylim([np.amin(return_list)-0.1,np.amax([np.amax(return_list),1.0])])
 
     if cur_iter%5==0:
         t3 = time.clock()
         f.canvas.restore_region(backgrounds[0])
-        graphs[0].set_ydata(predList)
+        graphs[0].set_ydata(rescaled_data[train_set])
         axarr[0].draw_artist(graphs[0])
+        graphs[1].set_ydata(predList)
+        axarr[0].draw_artist(graphs[1])
         f.canvas.blit(axarr[0].bbox)
+        
         f.canvas.restore_region(backgrounds[1])
-        graphs[1].set_data(range(cur_iter+1),loss_list)
-        axarr[1].draw_artist(graphs[1])
+        for i in np.arange(2,2+num_training_sets):
+            graphs[i].set_data(range(len(loss_list[i-2])),loss_list[i-2])
+            axarr[1].draw_artist(graphs[i])
         f.canvas.blit(axarr[1].bbox)
-        f.canvas.restore_region(backgrounds[1])
-        graphs[2].set_data(range(cur_iter+1),return_list)
-        axarr[2].draw_artist(graphs[2])
+        
+        f.canvas.restore_region(backgrounds[2])
+        graphs[-1].set_data(range(cur_iter+1),return_list)
+        axarr[2].draw_artist(graphs[-1])
         f.canvas.blit(axarr[2].bbox)
         print 'draw time: ', time.clock() - t3
         
     lstm_net.x_list_clear()
 #    pickle.dump(lstm_net.getParams(), openfile)
     print 'totaltime', time.clock() - t1
-    print "loss: ", loss_list[-1]
+    print "loss: ", [sub[-1] for sub in loss_list]
 #openfile.close()
 #    print 'learnRate: ', learnRate[-1]
