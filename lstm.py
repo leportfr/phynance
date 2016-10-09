@@ -57,8 +57,8 @@ class OutParam:
         self.by_diff_ema2 *= self.ema_rate
         self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff
         #update learn rates        
-        self.wy_lr *= np.clip(1.0 + self.learn_rate * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2,0.5,100.0)
-        self.by_lr *= np.clip(1.0 + self.learn_rate * self.by_diff * self.by_diff_ema / self.by_diff_ema2,0.5,100.0)
+        self.wy_lr *= np.clip(1.0 + self.learn_rate * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2,0.5,0.1/self.wy_lr)
+        self.by_lr *= np.clip(1.0 + self.learn_rate * self.by_diff * self.by_diff_ema / self.by_diff_ema2,0.5,0.1/self.by_lr)
         #update emas
         self.wy_diff_ema *= self.ema_rate
         self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
@@ -156,14 +156,14 @@ class LstmParam:
         self.bo_diff_ema2 *= self.ema_rate
         self.bo_diff_ema2 += (1. - self.ema_rate) * self.bo_diff * self.bo_diff + 1.e-6
         #update learn rates        
-        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.5,200.0)
-        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.5,200.0)
-        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.5,200.0)
-        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.5,200.0)
-        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.5,200.0)
-        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.5,200.0)
-        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.5,200.0)
-        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.5,200.0)
+        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.5,0.1/self.wg_lr)
+        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.5,0.1/self.wi_lr)
+        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.5,0.1/self.wf_lr)
+        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.5,0.1/self.wo_lr)
+        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.5,0.1/self.bg_lr)
+        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.5,0.1/self.bi_lr)
+        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.5,0.1/self.bf_lr)
+        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.5,0.1/self.bo_lr)
 #        print 'amax', np.amax([np.amax([self.wg_lr, self.wi_lr, self.wf_lr, self.wo_lr]),np.amax([self.bg_lr, self.bi_lr, self.bf_lr, self.bo_lr])])
         #update emas
         self.wg_diff_ema *= self.ema_rate
