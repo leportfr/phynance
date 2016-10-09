@@ -9,7 +9,7 @@ import cPickle as pickle
 import sys
 from random import randint
 
-scalerange=1.6
+scalerange=2.0
 def scale(a,b,x):
     return (a*(x.T-b)-scalerange/2.0).T
     
@@ -65,7 +65,7 @@ rescaled_data = np.reshape(rescale(scaleFactorAY, scaleFactorBY, y_list_full).T,
 #set RNN parameters
 learn_factor = 10.e-4
 ema_factor = 0.5
-mem_cells = [20,20]
+mem_cells = [60,60]
 iterations = int(1e6)
 x_dim = 1#x_list.shape[1]
 y_dim = x_dim
@@ -89,7 +89,7 @@ graphs.append(axarr[2].plot(np.zeros_like(rescaled_data[0])+1.0,animated=True)[0
 plt.show()
 plt.draw()
 plt.get_current_fig_manager().window.showMaximized()
-f.canvas.set_window_title('lf=10.e-4,[20,20],500 hist,strategyOutDiffIn,10_train_sets')
+f.canvas.set_window_title('lf=10.e-4,[60,60],500 hist,strategyOutDiffIn,10_train_sets,scalerange=2 integer output')
 plt.pause(0.01)
 backgrounds = [f.canvas.copy_from_bbox(ax.bbox) for ax in axarr]
 
@@ -135,6 +135,7 @@ for cur_iter in range(iterations):
         lstm_param.apply_diff()
     print 'apply time: ', time.clock() - t2
 
+    t3 = time.clock()
     axes_update_period=50
     if cur_iter%axes_update_period==0:
         plt.pause(0.001)
@@ -143,15 +144,15 @@ for cur_iter in range(iterations):
         axarr[2].set_xlim([0,cur_iter+axes_update_period])
         axarr[2].set_ylim([np.amin(return_list)-0.1,np.amax([np.amax(return_list),1.0])])
 
-    if cur_iter%5==0:
-        t3 = time.clock()
+    if cur_iter%1==0:
         f.canvas.restore_region(backgrounds[0])
         graphs[0].set_ydata(rescaled_data[train_set])
         axarr[0].draw_artist(graphs[0])
         graphs[1].set_ydata(predList)
         axarr[0].draw_artist(graphs[1])
         f.canvas.blit(axarr[0].bbox)
-        
+     
+    if cur_iter%50==0:
         f.canvas.restore_region(backgrounds[1])
         for i in np.arange(2,2+num_training_sets):
             graphs[i].set_data(range(len(loss_list[i-2])),loss_list[i-2])
@@ -162,7 +163,7 @@ for cur_iter in range(iterations):
         graphs[-1].set_data(range(cur_iter+1),return_list)
         axarr[2].draw_artist(graphs[-1])
         f.canvas.blit(axarr[2].bbox)
-        print 'draw time: ', time.clock() - t3
+    print 'draw time: ', time.clock() - t3
         
     lstm_net.x_list_clear()
 #    pickle.dump(lstm_net.getParams(), openfile)

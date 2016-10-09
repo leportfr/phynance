@@ -204,6 +204,7 @@ class LstmParam:
 class OutState:
     def __init__(self, out_dim, in_dim):
         self.y = np.zeros(out_dim)
+        self.yin = np.zeros(out_dim)
         self.bottom_diff_h = np.zeros_like(in_dim)
         
 class LstmState:
@@ -226,12 +227,14 @@ class OutNode:
         self.h = None
         
     def bottom_data_is(self, h):
-        self.state.y = np.tanh(np.dot(self.param.wy, h) + self.param.by)
+        self.state.yin = np.tanh(np.dot(self.param.wy, h) + self.param.by)
+        self.state.y = np.round(self.state.yin)
 #        self.state.y = sigmoid(np.dot(self.param.wy, h) + self.param.by)
         self.h = h
         
     def top_diff_is(self, top_diff_y):
-        dy_input = (1. - self.state.y * self.state.y) * top_diff_y
+        dy_input = (1. - self.state.yin * self.state.yin) * np.sign(top_diff_y) * (abs(self.state.yin) - 0.5 + abs(top_diff_y) - 1.0)
+#        dy_input = (1. - self.state.yin * self.state.yin) * top_diff_y
 #        dy_input = (1. - self.state.y) * self.state.y * top_diff_y
 
         self.param.wy_diff += np.outer(dy_input, self.h)
