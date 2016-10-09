@@ -21,9 +21,11 @@ def rand_arr(*args):
     
 def loss_func(pred, label):
     return (pred - label) ** 2
+#    return -(label*np.log(pred) + (1-label)*np.log(1-pred))
 
 def bottom_diff(pred, label):
     return 2 * (pred - label)
+#    return pred - label
     
 class OutParam:
     def __init__(self, out_dim, in_dim, learn_rate, ema_rate):
@@ -48,7 +50,7 @@ class OutParam:
         self.wy_lr = np.zeros((out_dim, in_dim)) + learn_rate
         self.by_lr = np.zeros(out_dim) + learn_rate
         
-    def apply_diff(self, lr = 1):
+    def apply_diff(self, l2 = 1):
         #update ema2s
         self.wy_diff_ema2 *= self.ema_rate
         self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff
@@ -62,7 +64,8 @@ class OutParam:
         self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
         self.by_diff_ema *= self.ema_rate
         self.by_diff_ema += (1. - self.ema_rate) * self.by_diff
-        #update weights        
+        #update weights      
+        self.wy *= (1. - self.wy_lr*l2)
         self.wy -= self.wy_lr * self.wy_diff
         self.by -= self.by_lr * self.by_diff  
         # reset diffs to zero
@@ -134,7 +137,7 @@ class LstmParam:
         self.bf_lr = np.zeros(out_dim) + learn_rate
         self.bo_lr = np.zeros(out_dim) + learn_rate        
 
-    def apply_diff(self):
+    def apply_diff(self, l2 = 1):
         #update ema2s
         self.wg_diff_ema2 *= self.ema_rate
         self.wg_diff_ema2 += (1. - self.ema_rate) * self.wg_diff * self.wg_diff + 1.e-6
@@ -180,6 +183,10 @@ class LstmParam:
         self.bo_diff_ema *= self.ema_rate
         self.bo_diff_ema += (1. - self.ema_rate) * self.bo_diff
         #update weights
+        self.wg *= (1. - self.wg_lr*l2) 
+        self.wi *= (1. - self.wi_lr*l2) 
+        self.wf *= (1. - self.wf_lr*l2) 
+        self.wo *= (1. - self.wo_lr*l2) 
         self.wg -= self.wg_lr * self.wg_diff
         self.wi -= self.wi_lr * self.wi_diff
         self.wf -= self.wf_lr * self.wf_diff
@@ -204,7 +211,6 @@ class LstmParam:
 class OutState:
     def __init__(self, out_dim, in_dim):
         self.y = np.zeros(out_dim)
-        self.yin = np.zeros(out_dim)
         self.bottom_diff_h = np.zeros_like(in_dim)
         
 class LstmState:
@@ -227,14 +233,13 @@ class OutNode:
         self.h = None
         
     def bottom_data_is(self, h):
-        self.state.yin = np.tanh(np.dot(self.param.wy, h) + self.param.by)
-        self.state.y = np.round(self.state.yin)
+        self.state.y = np.tanh(np.dot(self.param.wy, h) + self.param.by)
 #        self.state.y = sigmoid(np.dot(self.param.wy, h) + self.param.by)
         self.h = h
         
     def top_diff_is(self, top_diff_y):
-        dy_input = (1. - self.state.yin * self.state.yin) * np.sign(top_diff_y) * (abs(self.state.yin) - 0.5 + abs(top_diff_y) - 1.0)
-#        dy_input = (1. - self.state.yin * self.state.yin) * top_diff_y
+#        dy_input = top_diff_y
+        dy_input = (1. - self.state.y * self.state.y) * top_diff_y
 #        dy_input = (1. - self.state.y) * self.state.y * top_diff_y
 
         self.param.wy_diff += np.outer(dy_input, self.h)
