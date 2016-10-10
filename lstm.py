@@ -13,11 +13,11 @@ def sigmoid(x):
     return 1. / (1 + np.exp(-x))
 
 # create uniform random array w/ values in [a,b) and shape args
-def rand_arr(*args): 
-    a = 1/np.sqrt(args[-1]+1)
-    b = -a
-#    print a
-    return np.random.rand(*args) * (b - a) + a
+def rand_arr_w(*args): 
+    return np.random.normal(loc=0.0, scale=1/np.sqrt(args[-1]+1), size=args)
+    
+def rand_arr_b(*args): 
+    return np.random.normal(loc=0.0, scale=1.0, size=args)
     
 def loss_func(pred, label):
     return (pred - label) ** 2
@@ -34,9 +34,9 @@ class OutParam:
         self.learn_rate = learn_rate
         self.ema_rate = ema_rate
         # weight matrices        
-        self.wy = rand_arr(out_dim, in_dim)
+        self.wy = rand_arr_w(out_dim, in_dim)
         # bias terms
-        self.by = rand_arr(out_dim)
+        self.by = rand_arr_b(out_dim)
         # diffs (derivative of loss function w.r.t. all parameters)
         self.wy_diff = np.zeros((out_dim, in_dim))
         self.by_diff = np.zeros(out_dim)
@@ -82,15 +82,15 @@ class LstmParam:
         self.learn_rate = learn_rate
         self.ema_rate = ema_rate
         # weight matrices
-        self.wg = rand_arr(out_dim, in_dim+out_dim)
-        self.wi = rand_arr(out_dim, in_dim+out_dim) 
-        self.wf = rand_arr(out_dim, in_dim+out_dim)
-        self.wo = rand_arr(out_dim, in_dim+out_dim)
+        self.wg = rand_arr_w(out_dim, in_dim+out_dim)
+        self.wi = rand_arr_w(out_dim, in_dim+out_dim) 
+        self.wf = rand_arr_w(out_dim, in_dim+out_dim)
+        self.wo = rand_arr_w(out_dim, in_dim+out_dim)
         # bias terms
-        self.bg = rand_arr(out_dim) 
-        self.bi = rand_arr(out_dim) 
-        self.bf = rand_arr(out_dim) + 2.0 
-        self.bo = rand_arr(out_dim) 
+        self.bg = rand_arr_b(out_dim) 
+        self.bi = rand_arr_b(out_dim) 
+        self.bf = rand_arr_b(out_dim) + 2.0 
+        self.bo = rand_arr_b(out_dim) 
         # diffs (derivative of loss function w.r.t. all parameters)
         self.wg_diff = np.zeros((out_dim, in_dim+out_dim)) 
         self.wi_diff = np.zeros((out_dim, in_dim+out_dim)) 

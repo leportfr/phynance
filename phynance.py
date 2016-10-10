@@ -63,10 +63,10 @@ y_list_train = np.reshape(y_list_full[:train_len].T,[num_training_sets,train_len
 rescaled_data = np.reshape(rescale(scaleFactorAY, scaleFactorBY, y_list_full).T,[num_training_sets,len(y_list_full),1])
 
 #set RNN parameters
-learn_factor = 10.e-4
+learn_factor = 5.e-4
 ema_factor = 0.5
 l2_factor = 0.02
-mem_cells = [60,60]
+mem_cells = [100,100,100]
 iterations = int(1e6)
 x_dim = 1#x_list.shape[1]
 y_dim = x_dim
@@ -90,7 +90,7 @@ graphs.append(axarr[2].plot(np.zeros_like(rescaled_data[0])+1.0,animated=True)[0
 plt.show()
 plt.draw()
 plt.get_current_fig_manager().window.showMaximized()
-f.canvas.set_window_title('lf=10.e-4,[60,60],500 hist,strategyOutDiffIn,10_train_sets,l2=0.02')
+f.canvas.set_window_title('lf=5.e-4,[100,100,100],500 hist,strategyOutDiffIn,10_train_sets,l2=0.02')
 plt.pause(0.01)
 backgrounds = [f.canvas.copy_from_bbox(ax.bbox) for ax in axarr]
 
