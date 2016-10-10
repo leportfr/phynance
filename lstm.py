@@ -13,17 +13,19 @@ def sigmoid(x):
     return 1. / (1 + np.exp(-x))
 
 # create uniform random array w/ values in [a,b) and shape args
-def rand_arr(*args): 
-    a = 1/np.sqrt(args[-1]+1)
-    b = -a
-#    print a
-    return np.random.rand(*args) * (b - a) + a
+def rand_arr_w(*args): 
+    return np.random.normal(loc=0.0, scale=1/np.sqrt(args[-1]+1), size=args)
+    
+def rand_arr_b(*args): 
+    return np.random.normal(loc=0.0, scale=1.0, size=args)
     
 def loss_func(pred, label):
     return (pred - label) ** 2
+#    return -(label*np.log(pred) + (1-label)*np.log(1-pred))
 
 def bottom_diff(pred, label):
     return 2 * (pred - label)
+#    return pred - label
     
 class OutParam:
     def __init__(self, out_dim, in_dim, learn_rate, ema_rate):
@@ -32,9 +34,9 @@ class OutParam:
         self.learn_rate = learn_rate
         self.ema_rate = ema_rate
         # weight matrices        
-        self.wy = rand_arr(out_dim, in_dim)
+        self.wy = rand_arr_w(out_dim, in_dim)
         # bias terms
-        self.by = rand_arr(out_dim)
+        self.by = rand_arr_b(out_dim)
         # diffs (derivative of loss function w.r.t. all parameters)
         self.wy_diff = np.zeros((out_dim, in_dim))
         self.by_diff = np.zeros(out_dim)
@@ -48,21 +50,22 @@ class OutParam:
         self.wy_lr = np.zeros((out_dim, in_dim)) + learn_rate
         self.by_lr = np.zeros(out_dim) + learn_rate
         
-    def apply_diff(self, lr = 1):
+    def apply_diff(self, l2 = 1):
         #update ema2s
         self.wy_diff_ema2 *= self.ema_rate
         self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff
         self.by_diff_ema2 *= self.ema_rate
         self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff
         #update learn rates        
-        self.wy_lr *= np.clip(1.0 + self.learn_rate * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2,0.5,100.0)
-        self.by_lr *= np.clip(1.0 + self.learn_rate * self.by_diff * self.by_diff_ema / self.by_diff_ema2,0.5,100.0)
+        self.wy_lr *= np.clip(1.0 + self.learn_rate * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2,0.5,0.1/self.wy_lr)
+        self.by_lr *= np.clip(1.0 + self.learn_rate * self.by_diff * self.by_diff_ema / self.by_diff_ema2,0.5,0.1/self.by_lr)
         #update emas
         self.wy_diff_ema *= self.ema_rate
         self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
         self.by_diff_ema *= self.ema_rate
         self.by_diff_ema += (1. - self.ema_rate) * self.by_diff
-        #update weights        
+        #update weights      
+        self.wy *= (1. - self.wy_lr*l2)
         self.wy -= self.wy_lr * self.wy_diff
         self.by -= self.by_lr * self.by_diff  
         # reset diffs to zero
@@ -79,15 +82,15 @@ class LstmParam:
         self.learn_rate = learn_rate
         self.ema_rate = ema_rate
         # weight matrices
-        self.wg = rand_arr(out_dim, in_dim+out_dim)
-        self.wi = rand_arr(out_dim, in_dim+out_dim) 
-        self.wf = rand_arr(out_dim, in_dim+out_dim)
-        self.wo = rand_arr(out_dim, in_dim+out_dim)
+        self.wg = rand_arr_w(out_dim, in_dim+out_dim)
+        self.wi = rand_arr_w(out_dim, in_dim+out_dim) 
+        self.wf = rand_arr_w(out_dim, in_dim+out_dim)
+        self.wo = rand_arr_w(out_dim, in_dim+out_dim)
         # bias terms
-        self.bg = rand_arr(out_dim) 
-        self.bi = rand_arr(out_dim) 
-        self.bf = rand_arr(out_dim) + 2.0 
-        self.bo = rand_arr(out_dim) 
+        self.bg = rand_arr_b(out_dim) 
+        self.bi = rand_arr_b(out_dim) 
+        self.bf = rand_arr_b(out_dim) + 2.0 
+        self.bo = rand_arr_b(out_dim) 
         # diffs (derivative of loss function w.r.t. all parameters)
         self.wg_diff = np.zeros((out_dim, in_dim+out_dim)) 
         self.wi_diff = np.zeros((out_dim, in_dim+out_dim)) 
@@ -134,7 +137,7 @@ class LstmParam:
         self.bf_lr = np.zeros(out_dim) + learn_rate
         self.bo_lr = np.zeros(out_dim) + learn_rate        
 
-    def apply_diff(self):
+    def apply_diff(self, l2 = 1):
         #update ema2s
         self.wg_diff_ema2 *= self.ema_rate
         self.wg_diff_ema2 += (1. - self.ema_rate) * self.wg_diff * self.wg_diff + 1.e-6
@@ -153,14 +156,14 @@ class LstmParam:
         self.bo_diff_ema2 *= self.ema_rate
         self.bo_diff_ema2 += (1. - self.ema_rate) * self.bo_diff * self.bo_diff + 1.e-6
         #update learn rates        
-        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.5,200.0)
-        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.5,200.0)
-        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.5,200.0)
-        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.5,200.0)
-        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.5,200.0)
-        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.5,200.0)
-        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.5,200.0)
-        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.5,200.0)
+        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.5,0.1/self.wg_lr)
+        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.5,0.1/self.wi_lr)
+        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.5,0.1/self.wf_lr)
+        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.5,0.1/self.wo_lr)
+        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.5,0.1/self.bg_lr)
+        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.5,0.1/self.bi_lr)
+        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.5,0.1/self.bf_lr)
+        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.5,0.1/self.bo_lr)
 #        print 'amax', np.amax([np.amax([self.wg_lr, self.wi_lr, self.wf_lr, self.wo_lr]),np.amax([self.bg_lr, self.bi_lr, self.bf_lr, self.bo_lr])])
         #update emas
         self.wg_diff_ema *= self.ema_rate
@@ -180,6 +183,10 @@ class LstmParam:
         self.bo_diff_ema *= self.ema_rate
         self.bo_diff_ema += (1. - self.ema_rate) * self.bo_diff
         #update weights
+        self.wg *= (1. - self.wg_lr*l2) 
+        self.wi *= (1. - self.wi_lr*l2) 
+        self.wf *= (1. - self.wf_lr*l2) 
+        self.wo *= (1. - self.wo_lr*l2) 
         self.wg -= self.wg_lr * self.wg_diff
         self.wi -= self.wi_lr * self.wi_diff
         self.wf -= self.wf_lr * self.wf_diff
@@ -231,6 +238,7 @@ class OutNode:
         self.h = h
         
     def top_diff_is(self, top_diff_y):
+#        dy_input = top_diff_y
         dy_input = (1. - self.state.y * self.state.y) * top_diff_y
 #        dy_input = (1. - self.state.y) * self.state.y * top_diff_y
 
