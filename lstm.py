@@ -1,16 +1,16 @@
 import numpy as np
 import time
-import gDot
-import gOuter
 import sys
+from numba import autojit
 
 np.random.seed(0)
 
+@autojit
 def sigmoid(x):
 #    if any(x<-100):
 #        print 'xvals',x
 #        sys.exit()
-    return 1. / (1 + np.exp(-x))
+    return 1. / (1. + np.exp(-x))
 
 # create uniform random array w/ values in [a,b) and shape args
 def rand_arr_w(*args): 
@@ -53,12 +53,12 @@ class OutParam:
     def apply_diff(self, l2 = 1):
         #update ema2s
         self.wy_diff_ema2 *= self.ema_rate
-        self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff
+        self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff + 1.e-12
         self.by_diff_ema2 *= self.ema_rate
-        self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff
-        #update learn rates        
-        self.wy_lr *= np.clip(1.0 + self.learn_rate * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2,0.5,0.1/self.wy_lr)
-        self.by_lr *= np.clip(1.0 + self.learn_rate * self.by_diff * self.by_diff_ema / self.by_diff_ema2,0.5,0.1/self.by_lr)
+        self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff + 1.e-12
+        #update learn rates   
+        self.wy_lr *= np.clip(1.0 + self.learn_rate * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2,0.1,0.25/self.wy_lr)
+        self.by_lr *= np.clip(1.0 + self.learn_rate * self.by_diff * self.by_diff_ema / self.by_diff_ema2,0.1,0.25/self.by_lr)
         #update emas
         self.wy_diff_ema *= self.ema_rate
         self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
@@ -140,31 +140,30 @@ class LstmParam:
     def apply_diff(self, l2 = 1):
         #update ema2s
         self.wg_diff_ema2 *= self.ema_rate
-        self.wg_diff_ema2 += (1. - self.ema_rate) * self.wg_diff * self.wg_diff + 1.e-6
+        self.wg_diff_ema2 += (1. - self.ema_rate) * self.wg_diff * self.wg_diff + 1.e-12
         self.wi_diff_ema2 *= self.ema_rate
-        self.wi_diff_ema2 += (1. - self.ema_rate) * self.wi_diff * self.wi_diff + 1.e-6
+        self.wi_diff_ema2 += (1. - self.ema_rate) * self.wi_diff * self.wi_diff + 1.e-12
         self.wf_diff_ema2 *= self.ema_rate
-        self.wf_diff_ema2 += (1. - self.ema_rate) * self.wf_diff * self.wf_diff + 1.e-6
+        self.wf_diff_ema2 += (1. - self.ema_rate) * self.wf_diff * self.wf_diff + 1.e-12
         self.wo_diff_ema2 *= self.ema_rate
-        self.wo_diff_ema2 += (1. - self.ema_rate) * self.wo_diff * self.wo_diff + 1.e-6
+        self.wo_diff_ema2 += (1. - self.ema_rate) * self.wo_diff * self.wo_diff + 1.e-12
         self.bg_diff_ema2 *= self.ema_rate
-        self.bg_diff_ema2 += (1. - self.ema_rate) * self.bg_diff * self.bg_diff + 1.e-6
+        self.bg_diff_ema2 += (1. - self.ema_rate) * self.bg_diff * self.bg_diff + 1.e-12
         self.bi_diff_ema2 *= self.ema_rate
-        self.bi_diff_ema2 += (1. - self.ema_rate) * self.bi_diff * self.bi_diff + 1.e-6
+        self.bi_diff_ema2 += (1. - self.ema_rate) * self.bi_diff * self.bi_diff + 1.e-12
         self.bf_diff_ema2 *= self.ema_rate
-        self.bf_diff_ema2 += (1. - self.ema_rate) * self.bf_diff * self.bf_diff + 1.e-6
+        self.bf_diff_ema2 += (1. - self.ema_rate) * self.bf_diff * self.bf_diff + 1.e-12
         self.bo_diff_ema2 *= self.ema_rate
-        self.bo_diff_ema2 += (1. - self.ema_rate) * self.bo_diff * self.bo_diff + 1.e-6
+        self.bo_diff_ema2 += (1. - self.ema_rate) * self.bo_diff * self.bo_diff + 1.e-12
         #update learn rates        
-        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.5,0.1/self.wg_lr)
-        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.5,0.1/self.wi_lr)
-        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.5,0.1/self.wf_lr)
-        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.5,0.1/self.wo_lr)
-        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.5,0.1/self.bg_lr)
-        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.5,0.1/self.bi_lr)
-        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.5,0.1/self.bf_lr)
-        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.5,0.1/self.bo_lr)
-#        print 'amax', np.amax([np.amax([self.wg_lr, self.wi_lr, self.wf_lr, self.wo_lr]),np.amax([self.bg_lr, self.bi_lr, self.bf_lr, self.bo_lr])])
+        self.wg_lr *= np.clip(1.0 + self.learn_rate * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2,0.1,0.25/self.wg_lr)
+        self.wi_lr *= np.clip(1.0 + self.learn_rate * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2,0.1,0.25/self.wi_lr)
+        self.wf_lr *= np.clip(1.0 + self.learn_rate * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2,0.1,0.25/self.wf_lr)
+        self.wo_lr *= np.clip(1.0 + self.learn_rate * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2,0.1,0.25/self.wo_lr)
+        self.bg_lr *= np.clip(1.0 + self.learn_rate * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2,0.1,0.25/self.bg_lr)
+        self.bi_lr *= np.clip(1.0 + self.learn_rate * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2,0.1,0.25/self.bi_lr)
+        self.bf_lr *= np.clip(1.0 + self.learn_rate * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2,0.1,0.25/self.bf_lr)
+        self.bo_lr *= np.clip(1.0 + self.learn_rate * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2,0.1,0.25/self.bo_lr)
         #update emas
         self.wg_diff_ema *= self.ema_rate
         self.wg_diff_ema += (1. - self.ema_rate) * self.wg_diff
@@ -256,7 +255,7 @@ class LstmNode:
         self.inpt = None
         # non-recurrent input concatenated with recurrent input
         self.inptc = None
-
+        
     def bottom_data_is(self, inpt, s_prev, h_prev):
         # save data for use in backprop
         self.s_prev = s_prev
@@ -268,7 +267,8 @@ class LstmNode:
 #        self.state.g = sigmoid(np.dot(self.param.wg, xc) + self.param.bg)
         self.state.i = sigmoid(np.dot(self.param.wi, inptc) + self.param.bi)
         self.state.f = sigmoid(np.dot(self.param.wf, inptc) + self.param.bf)
-        self.state.o = sigmoid(np.dot(self.param.wo, inptc) + self.param.bo)
+        self.state.o = sigmoid(np.dot(self.param.wo, inptc) + self.param.bo)       
+        
         self.state.s = self.state.g * self.state.i + s_prev * self.state.f
         self.state.tanhs = np.tanh(self.state.s)
         self.state.h = self.state.tanhs * self.state.o
@@ -343,10 +343,11 @@ class LstmNetwork():
         """
         assert len(y_list) <= len(self.x_list)
         # here s is not affecting loss due to h(t+1), hence we set equal to zero
-        idx = len(y_list) - 1
+        idy = len(y_list) - 1
+        idx = len(self.x_list) - 1
         # calculate loss from out_node and backpropagate
-        loss = loss_func(self.out_node_list[idx].state.y, y_list[idx])
-        diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idx]) 
+        loss = loss_func(self.out_node_list[idx].state.y, y_list[idy])
+        diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idy]) 
 #        print diff_y
         self.out_node_list[idx].top_diff_is(diff_y)   
         # calculate diff for lstm nodes and backpropagate
@@ -358,14 +359,18 @@ class LstmNetwork():
             diff_s = np.zeros_like(self.lstm_node_list[idx][-lyr-2].state.s)
             self.lstm_node_list[idx][-lyr-2].top_diff_is(diff_h, diff_s)
         idx -= 1
+        idy -= 1
 
         ### ... following nodes also get diffs from next nodes, hence we add diffs to diff_h
         ### we also propagate error along constant error carousel using diff_s
         while idx >= 0:
-            loss += loss_func(self.out_node_list[idx].state.y, y_list[idx])
-            diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idx])  
-            self.out_node_list[idx].top_diff_is(diff_y)
-            diff_h = self.out_node_list[idx].state.bottom_diff_h
+            if idy >= 0:
+                loss += loss_func(self.out_node_list[idx].state.y, y_list[idy])
+                diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idy])  
+                self.out_node_list[idx].top_diff_is(diff_y)
+                diff_h = self.out_node_list[idx].state.bottom_diff_h
+            else:
+                diff_h = 0.0
             diff_h += self.lstm_node_list[idx + 1][-1].state.bottom_diff_h
             diff_s = self.lstm_node_list[idx + 1][-1].state.bottom_diff_s
             self.lstm_node_list[idx][-1].top_diff_is(diff_h, diff_s)
@@ -375,6 +380,7 @@ class LstmNetwork():
                 diff_s = self.lstm_node_list[idx + 1][-lyr-2].state.bottom_diff_s
                 self.lstm_node_list[idx][-lyr-2].top_diff_is(diff_h, diff_s)
             idx -= 1 
+            idy -= 1
 #            print diff_h2[np.where(diff_h2>1.)], diff_s2[np.where(diff_s2>1.)], diff_h[np.where(diff_h>1.)], diff_s[np.where(diff_s>1.)]
 
         return loss
