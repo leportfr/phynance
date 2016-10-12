@@ -5,7 +5,6 @@ sdolinit = 1.0e5
 bidaskinit = 0.005
 cominit = 9.99
 
-#@autojit
 def ewma_strategy(stock_price, pred_ewma, sdol=sdolinit, bidask=bidaskinit, com=cominit):
     dollars=sdol
     shares=0
