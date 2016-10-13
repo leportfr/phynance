@@ -26,32 +26,35 @@ datasize = df.shape[0]
 
 ### set RNN parameters ###
 
-learn_factor = 0.001
+learn_factor = 0.01
 ema_factor = 0.1
 l2_factor = 0.0
-mem_cells = [20,20]
+dropout_rate = 0.0
+mem_cells = [10,10]
 
 ##array parameters
 history_len = 365
 train_len = 100
 
-num_training_sets = 300
-mini_batch_size = 10
+num_training_sets = 10
+mini_batch_size = 3
 random_batch = 1
 
-num_test_sets = 100
+num_test_sets = 10
 
-### build and scale input and output arrays ###
+test_train_cutoff = 1000
 
+###------ build and scale input and output arrays ------###
 iterations = int(1e6)
 x_dim = 1#x_list.shape[1]
 y_dim = x_dim
 layer_dims = [x_dim]+mem_cells+[y_dim]
 lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
 
+np.random.seed(10)
 ## build and scale input arrays
 assert(datasize > num_test_sets+num_training_sets+2*history_len+2*train_len+2)
-inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1] for i in range(num_training_sets)])
+inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
 inputDataDiff = np.diff(inputData,axis=1)
 scaleFactorB=np.min(inputDataDiff,axis=1)
 scaleFactorA=scalerangeX/(np.max(inputDataDiff,axis=1)-scaleFactorB)
@@ -75,7 +78,8 @@ y_list_train = np.reshape(y_list_full[-train_len:].T,[num_training_sets,train_le
 rescaled_data = np.reshape(rescaleY(scaleFactorAY, scaleFactorBY, y_list_full).T,[num_training_sets,len(y_list_full),1])
 
 ## build and scale test arrays
-testData = np.array([np.array(df).T[0,i+num_training_sets+history_len+train_len+1:i+num_training_sets+2*history_len+2*train_len+2] for i in np.random.randint(datasize-(num_training_sets+2*history_len+2*train_len+2),size=num_test_sets)])
+testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1:i+test_train_cutoff+2*history_len+2*train_len+2] for i in np.random.choice(datasize-(test_train_cutoff+2*history_len+2*train_len+2),size=num_test_sets-1,replace=False)])
+testData = np.concatenate([[np.array(df).T[0,num_training_sets+train_len:num_training_sets+history_len+2*train_len+1]],testData])
 testDataDiff = np.diff(testData,axis=1)
 scaleFactorBT=np.min(testDataDiff,axis=1)
 scaleFactorAT=scalerangeX/(np.max(testDataDiff,axis=1)-scaleFactorBT)
@@ -91,43 +95,50 @@ for j,sublist in enumerate(buySellList):
         mult*=-1
 ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:])[-1] for i in range(num_test_sets)]
 
-### build visualization window and execute training
-wintitle='diffin,lf='+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+###------ build visualization window and execute training ------###
+wintitle='rndiffin,lf='+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
-win.resize(1500,1000)
-#win.setWindowTitle('pyqtgraph example: Plotting')
+win.resize(1575,825)
 pg.setConfigOptions(antialias=True)
 
 plots=list()
 curves=list()
 
-plots.append(win.addPlot(title='visualize fit'))
-curves.append(plots[-1].plot(pen='g'))
-curves.append(plots[-1].plot(pen='r'))
+plots.append(win.addPlot(title='visualize fit',colspan=2))
+curves.append(plots[-1].plot(pen='g')) #curve 0
+curves.append(plots[-1].plot(pen='r')) #curve 1
 win.nextRow()
 
-plots.append(win.addPlot(title='loss function'))
-curves.append(plots[-1].plot(pen='r'))
+plots.append(win.addPlot(title='loss function',colspan=2))
+curves.append(plots[-1].plot(pen='r')) #curve 2
 plots[-1].setLogMode(x=False, y=True)
 win.nextRow()
 
-plots.append(win.addPlot(title='training return'))
-curves.append(plots[-1].plot(pen='r'))
+plots.append(win.addPlot(title='training return',colspan=2))
+curves.append(plots[-1].plot(pen='r')) #curve 3
 win.nextRow()
 
 plots.append(win.addPlot(title='test set return'))
-curves.append(plots[-1].plot(stepMode=True, fillLevel=0, brush=(0,0,255,150)))
+curves.append(plots[-1].plot(stepMode=True, fillLevel=0, brush=(0,0,255,150))) #curve 4
+plots.append(win.addPlot(title='test set return history'))
+curves.append(plots[-1].plot(pen='g')) #curve 5
+curves.append(plots[-1].plot(pen='b')) #curve 6
+curves.append(plots[-1].plot(pen='r')) #curve 7
+curves.append(plots[-1].plot(pen='b')) #curve 8
+curves.append(plots[-1].plot(pen='g')) #curve 9
+curves.append(plots[-1].plot(pen='y')) #curve 10
 
 #outfile = 'C:\Users\leportfr\Desktop\Phynance\outPickle'
 #openfile = open(outfile, 'wb')
 loss_list = list()
 #learnRate = list()
 return_list = list()
-test_return_list = list()
+test_return_plot_list = list()
+next_test_return = list()
 cur_iter=0
 def iterate():
-    global curves, plots, cur_iter, test_return_list
+    global curves, plots, cur_iter
     if random_batch:
         train_set = np.random.randint(num_training_sets) 
     else:
@@ -136,7 +147,7 @@ def iterate():
     t1 = time.clock()
     print '\ncur iter: ', cur_iter, train_set
     for val in x_list_train[train_set]:
-        lstm_net.x_list_add(val)
+        lstm_net.x_list_add(val, dropout_rate)
     predList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
     return_list.append((strategy.trade(inputData[train_set,-train_len:],predList[-train_len:,0])[-1]-1.e5)/(ideal_return[train_set]-1.e5))
     print 'add x_val time: ', time.clock() - t1  
@@ -153,23 +164,36 @@ def iterate():
     
     lstm_net.x_list_clear()
     
+    
     if cur_iter%500==1:
-        test_return_list = []
         t3 = time.clock()
+        test_return_list = []
+        
         for test_set,test_setX in enumerate(x_list_test):
             for val in test_setX:
-                lstm_net.x_list_add(val)
+                lstm_net.x_list_add(val, 0.0)
             predTestList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
-            test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
+            if test_set==0:
+                next_test_return.append((strategy.trade(testData[test_set,-train_len:],predTestList[-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
+            else:
+                test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
             lstm_net.x_list_clear()
+        
+        y_test_hist,x_test_hist = np.histogram(test_return_list, bins=np.linspace(-0.5, 1, 15))
+        curves[4].setData(x_test_hist, y_test_hist)  
+        
+        ave=np.average(test_return_list)
+        std=np.std(test_return_list)
+        test_return_plot_list.append([np.amin(test_return_list),ave-std,ave,ave+std,np.amax(test_return_list)])
+        for i in range(5):
+            curves[5+i].setData(np.array(test_return_plot_list)[:,i])
+        curves[10].setData(next_test_return)
         print 'test time: ', time.clock() - t3
 
     curves[0].setData(rescaled_data[train_set,:,0])
     curves[1].setData(predList[:,0])
     curves[2].setData(loss_list)
     curves[3].setData(return_list)
-    y_test_hist,x_test_hist = np.histogram(test_return_list, bins=np.linspace(-0.5, 1, 15))
-    curves[4].setData(x_test_hist, y_test_hist)       
     
 #    pickle.dump(lstm_net.getParams(), openfile)
     print 'totaltime', time.clock() - t1
@@ -181,7 +205,7 @@ timer.timeout.connect(iterate)
 timer.start(1)
 #openfile.close()
 
-## Start Qt event loop unless running in interactive mode or using pyside.
+###------ Start Qt event loop unless running in interactive mode or using pyside ------###
 if __name__ == '__main__':
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtGui.QApplication.instance().exec_()

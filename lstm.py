@@ -231,10 +231,14 @@ class OutNode:
         self.state = out_state
         self.h = None
         
-    def bottom_data_is(self, h):
-        self.state.y = np.tanh(np.dot(self.param.wy, h) + self.param.by)
+    def bottom_data_is(self, h, dropout_rate):
+        dropout_list=[0]*int(len(h)*dropout_rate)
+        dropout_list+=[1]*(len(h)-len(dropout_list))
+        np.random.shuffle(dropout_list)
+        self.h = h*dropout_list
+        
+        self.state.y = np.tanh(np.dot(self.param.wy, self.h) + self.param.by)
 #        self.state.y = sigmoid(np.dot(self.param.wy, h) + self.param.by)
-        self.h = h
         
     def top_diff_is(self, top_diff_y):
 #        dy_input = top_diff_y
@@ -256,25 +260,26 @@ class LstmNode:
         # non-recurrent input concatenated with recurrent input
         self.inptc = None
         
-    def bottom_data_is(self, inpt, s_prev, h_prev):
+    def bottom_data_is(self, inpt, s_prev, h_prev, dropout_rate):
         # save data for use in backprop
         self.s_prev = s_prev
 
         # concatenate inpt(t) and h(t-1)
-        inptc = np.hstack((inpt,  h_prev))
+        dropout_list=[0]*int(len(inpt)*dropout_rate)
+        dropout_list+=[1]*(len(inpt)-len(dropout_list))
+        np.random.shuffle(dropout_list)
+        self.inptc = np.hstack((inpt*dropout_list,  h_prev))
 
-        self.state.g = np.tanh(np.dot(self.param.wg, inptc) + self.param.bg)
+        self.state.g = np.tanh(np.dot(self.param.wg, self.inptc) + self.param.bg)
 #        self.state.g = sigmoid(np.dot(self.param.wg, xc) + self.param.bg)
-        self.state.i = sigmoid(np.dot(self.param.wi, inptc) + self.param.bi)
-        self.state.f = sigmoid(np.dot(self.param.wf, inptc) + self.param.bf)
-        self.state.o = sigmoid(np.dot(self.param.wo, inptc) + self.param.bo)       
+        self.state.i = sigmoid(np.dot(self.param.wi, self.inptc) + self.param.bi)
+        self.state.f = sigmoid(np.dot(self.param.wf, self.inptc) + self.param.bf)
+        self.state.o = sigmoid(np.dot(self.param.wo, self.inptc) + self.param.bo)       
         
         self.state.s = self.state.g * self.state.i + s_prev * self.state.f
         self.state.tanhs = np.tanh(self.state.s)
         self.state.h = self.state.tanhs * self.state.o
 #        self.state.h = self.state.s * self.state.o
-
-        self.inptc = inptc
     
     def top_diff_is(self, top_diff_h, top_diff_s):
 #        t0 = time.clock()
@@ -388,7 +393,7 @@ class LstmNetwork():
     def x_list_clear(self):
         self.x_list = []
 
-    def x_list_add(self, x):
+    def x_list_add(self, x, dropout_rate):
         self.x_list.append(x)
         lstm_states=list()
         if len(self.x_list) > len(self.lstm_node_list):
@@ -407,10 +412,11 @@ class LstmNetwork():
         if idx == 0:
 #            print 'idx', idx
             # no recurrent inputs yet
-            self.lstm_node_list[idx][0].bottom_data_is(x, np.zeros_like(self.lstm_node_list[idx][0].state.s), np.zeros_like(self.lstm_node_list[idx][0].state.h))
+            self.lstm_node_list[idx][0].bottom_data_is(x, np.zeros_like(self.lstm_node_list[idx][0].state.s), np.zeros_like(self.lstm_node_list[idx][0].state.h), 0.0)
             for lyr in range(self.num_layers-3):
-                self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, np.zeros_like(self.lstm_node_list[idx][lyr+1].state.s), np.zeros_like(self.lstm_node_list[idx][lyr+1].state.h))
-            self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h)
+                self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, np.zeros_like(self.lstm_node_list[idx][lyr+1].state.s),
+                                                               np.zeros_like(self.lstm_node_list[idx][lyr+1].state.h), dropout_rate)
+            self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h, dropout_rate)
         else:
 #            print 'idx', idx
             s_prevs=list()
@@ -419,10 +425,10 @@ class LstmNetwork():
                 s_prevs.append(self.lstm_node_list[idx - 1][lyr].state.s)
                 h_prevs.append(self.lstm_node_list[idx - 1][lyr].state.h)
 #            print x, s_prevs[0], h_prevs[0]
-            self.lstm_node_list[idx][0].bottom_data_is(x, s_prevs[0], h_prevs[0])
+            self.lstm_node_list[idx][0].bottom_data_is(x, s_prevs[0], h_prevs[0], 0.0)
             for lyr in range(self.num_layers-3):
-                self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, s_prevs[lyr+1], h_prevs[lyr+1])
-            self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h)
+                self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, s_prevs[lyr+1], h_prevs[lyr+1], dropout_rate)
+            self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h, dropout_rate)
             
     def getOutData(self):
         outData = list()
