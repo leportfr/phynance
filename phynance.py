@@ -26,23 +26,24 @@ datasize = df.shape[0]
 
 ### set RNN parameters ###
 
-learn_factor = 0.01
+learn_factor = 0.0001
 ema_factor = 0.1
 l2_factor = 0.0
 dropout_rate = 0.0
-mem_cells = [10,10]
+mem_cells = [20,20,20]
 
 ##array parameters
 history_len = 365
 train_len = 100
 
-num_training_sets = 10
-mini_batch_size = 3
+num_training_sets = 100
+mini_batch_size = 10
 random_batch = 1
 
-num_test_sets = 10
+num_test_sets = 100
 
 test_train_cutoff = 1000
+test_limit = 2500
 
 ###------ build and scale input and output arrays ------###
 iterations = int(1e6)
@@ -53,7 +54,6 @@ lstm_net = lstm.LstmNetwork(layer_dims, learn_factor, ema_factor)
 
 np.random.seed(10)
 ## build and scale input arrays
-assert(datasize > num_test_sets+num_training_sets+2*history_len+2*train_len+2)
 inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
 inputDataDiff = np.diff(inputData,axis=1)
 scaleFactorB=np.min(inputDataDiff,axis=1)
@@ -78,8 +78,8 @@ y_list_train = np.reshape(y_list_full[-train_len:].T,[num_training_sets,train_le
 rescaled_data = np.reshape(rescaleY(scaleFactorAY, scaleFactorBY, y_list_full).T,[num_training_sets,len(y_list_full),1])
 
 ## build and scale test arrays
-testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1:i+test_train_cutoff+2*history_len+2*train_len+2] for i in np.random.choice(datasize-(test_train_cutoff+2*history_len+2*train_len+2),size=num_test_sets-1,replace=False)])
-testData = np.concatenate([[np.array(df).T[0,num_training_sets+train_len:num_training_sets+history_len+2*train_len+1]],testData])
+testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1:i+test_train_cutoff+2*history_len+2*train_len+2] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2),size=num_test_sets-1,replace=False)])
+testData = np.concatenate([[np.array(df).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1]],testData])
 testDataDiff = np.diff(testData,axis=1)
 scaleFactorBT=np.min(testDataDiff,axis=1)
 scaleFactorAT=scalerangeX/(np.max(testDataDiff,axis=1)-scaleFactorBT)
