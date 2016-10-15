@@ -35,7 +35,7 @@ learn_factor = 0.1
 ema_factor = 0.8
 l2_factor = 0.0
 dropout_rate = 0.0
-mem_cells = [50,50]
+mem_cells = [50,50,50]
 
 ##array parameters
 history_len = 365
@@ -45,7 +45,7 @@ num_training_sets = 100
 mini_batch_size = 10
 random_batch = 1
 
-num_test_sets = 100
+num_test_sets = 5
 
 test_train_cutoff = 1000
 test_limit = 2500
@@ -129,16 +129,18 @@ curves.append(plots[-1].plot(pen='r')) #curve 5
 curves.append(plots[-1].plot(pen='g')) #curve 6
 win.nextRow()
 
-plots.append(win.addPlot(title='test set return',colspan=int((len(layer_dims)-1)/2)))
+plots.append(win.addPlot(title='test set return',colspan=1))
 curves.append(plots[-1].plot(stepMode=True, fillLevel=0, brush=(0,0,255,150))) #curve 7
-plots.append(win.addPlot(title='test set return history',colspan=len(layer_dims)-1-int((len(layer_dims)-1)/2)))
+plots.append(win.addPlot(title='test set loss function',colspan=1))
+curves.append(plots[-1].plot(stepMode=True, fillLevel=0, brush=(0,0,255,150))) #curve 8
+plots.append(win.addPlot(title='test set return history',colspan=len(layer_dims)-2))
 plots[-1].showGrid(x=False, y=True)
-curves.append(plots[-1].plot(pen='g')) #curve 8
-curves.append(plots[-1].plot(pen='b')) #curve 9
-curves.append(plots[-1].plot(pen='r')) #curve 10
-curves.append(plots[-1].plot(pen='b')) #curve 11
-curves.append(plots[-1].plot(pen='g')) #curve 12
-curves.append(plots[-1].plot(pen='y')) #curve 13
+curves.append(plots[-1].plot(pen='g')) #curve 9
+curves.append(plots[-1].plot(pen='b')) #curve 10
+curves.append(plots[-1].plot(pen='r')) #curve 11
+curves.append(plots[-1].plot(pen='b')) #curve 12
+curves.append(plots[-1].plot(pen='g')) #curve 13
+curves.append(plots[-1].plot(pen='y')) #curve 14
 win.nextRow()
 
 for i in range(len(layer_dims)-1):
@@ -161,6 +163,11 @@ for i in range(len(layer_dims)-1):
     curves.append(plots[-1].plot(pen='r')) #average
     curves.append(plots[-1].plot(pen='b')) #ave + std
     curves.append(plots[-1].plot(pen='g')) #max 
+win.nextRow()
+
+plots.append(win.addPlot(title='visualize test fit',colspan=len(layer_dims)-1))
+curves.append(plots[-1].plot(pen='g'))
+curves.append(plots[-1].plot(pen='r'))
 
 #outfile = 'C:\Users\leportfr\Desktop\Phynance\outPickle'
 #openfile = open(outfile, 'wb')
@@ -173,10 +180,11 @@ test_return_plot_list = list()
 next_test_return = list()
 learn_rate_listW = list()
 learn_rate_listB = list()
+predTestList = list()
 cur_iter=0
 t5=0
 def iterate():
-    global curves, plots, cur_iter, t5
+    global curves, plots, cur_iter, t5, predTestList
     if random_batch:
         train_set = np.random.randint(num_training_sets) 
     else:
@@ -219,36 +227,42 @@ def iterate():
         t3 = time.clock()
         test_return_list = []
         test_loss_list = []
+        predTestList = []
         for test_set,test_setX in enumerate(x_list_test):
             for val in test_setX:
                 lstm_net.x_list_add(val, 0.0)
-            predTestList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
-            test_loss_list.append(np.sum(lstm.loss_func(predTestList[-train_len:,0],ytest_list_full[test_set,-train_len:])))
+            predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()))
+            test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,0],ytest_list_full[test_set,-train_len:])))
             if test_set==0:
-                next_test_return.append((strategy.trade(testData[test_set,-train_len:],predTestList[-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
+                next_test_return.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
             else:
-                test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
+                test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
             lstm_net.x_list_clear()
         test_loss_list_ma.append(np.average(test_loss_list))
         print 'test time: ', time.clock() - t3
         curves[4].setData(np.arange(len(test_loss_list_ma))*500,test_loss_list_ma)
         
-        y_test_hist,x_test_hist = np.histogram(test_return_list, bins=np.linspace(-0.5, 1, 15))
+        y_test_hist,x_test_hist = np.histogram(test_return_list, bins=np.linspace(-0.5, 1, 30))
         curves[7].setData(x_test_hist, y_test_hist)  
+        y_test_loss_hist,x_test_loss_hist = np.histogram(test_loss_list, bins=np.linspace(0, 200, 40))
+        curves[8].setData(x_test_loss_hist, y_test_loss_hist) 
         
         ave=np.average(test_return_list)
         std=np.std(test_return_list)
         test_return_plot_list.append([np.amin(test_return_list),ave-std,ave,ave+std,np.amax(test_return_list)])
         for i in range(5):
-            curves[8+i].setData(np.arange(len(test_return_plot_list))*500,np.array(test_return_plot_list)[:,i])
-        curves[13].setData(np.arange(len(test_return_plot_list))*500,next_test_return)
+            curves[9+i].setData(np.arange(len(test_return_plot_list))*500,np.array(test_return_plot_list)[:,i])
+        curves[14].setData(np.arange(len(test_return_plot_list))*500,next_test_return)
     if cur_iter%10 == 0:
         learn_rate_listW.append(lstm_net.getLearnRateStatsW())
         learn_rate_listB.append(lstm_net.getLearnRateStatsB())
         for i in range(len(layer_dims)-1):
             for j in range(5):
-                curves[14+5*i+j].setData(np.arange(len(learn_rate_listW))*10,np.array(learn_rate_listW)[:,i,j])
-                curves[(14+5*(len(layer_dims)-1))+5*i+j].setData(np.arange(len(learn_rate_listB))*10,np.array(learn_rate_listB)[:,i,j])   
+                curves[15+5*i+j].setData(np.arange(len(learn_rate_listW))*10,np.array(learn_rate_listW)[:,i,j])
+                curves[(15+5*(len(layer_dims)-1))+5*i+j].setData(np.arange(len(learn_rate_listB))*10,np.array(learn_rate_listB)[:,i,j])   
+    
+    curves[15+10*(len(layer_dims)-1)].setData(ytest_list_full[cur_iter%num_test_sets])
+    curves[15+10*(len(layer_dims)-1)+1].setData(predTestList[cur_iter%num_test_sets][:,0])
     print 'display time: ', time.clock() - t4
     
 #    pickle.dump(lstm_net.getParams(), openfile)
