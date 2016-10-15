@@ -1,7 +1,9 @@
 import numpy as np
 import time
 import sys
+import gOuter
 from numba import autojit
+from pycuda import gpuarray
 
 np.random.seed(0)
 
@@ -279,7 +281,7 @@ class OutNode:
         self.state.bottom_diff_h = np.dot(self.param.wy.T, dy_input)     
     
 class LstmNode:
-    def __init__(self, lstm_param, lstm_state):
+    def __init__(self, lstm_param, lstm_state, gOuter):
         # store reference to parameters and to activations
         self.state = lstm_state
         self.param = lstm_param
@@ -287,6 +289,10 @@ class LstmNode:
         self.inpt = None
         # non-recurrent input concatenated with recurrent input
         self.inptc = None
+        
+        self.gOuter = gOuter
+#        self.b_gpu = None
+#        self.c_gpu = None
         
     def bottom_data_is(self, inpt, s_prev, h_prev, dropout_rate):
         # save data for use in backprop
@@ -308,6 +314,9 @@ class LstmNode:
         self.state.tanhs = np.tanh(self.state.s)
         self.state.h = self.state.tanhs * self.state.o
 #        self.state.h = self.state.s * self.state.o
+        
+#        self.b_gpu = gpuarray.to_gpu(self.inptc.astype(np.float32))
+#        self.c_gpu = gpuarray.empty((len(self.state.i),len(self.inptc)), np.float32)
     
     def top_diff_is(self, top_diff_h, top_diff_s):
 #        t0 = time.clock()
@@ -322,8 +331,29 @@ class LstmNode:
 #        dg_input = (1. - self.state.g) * self.state.g * dg
 #        print 'top_diff_is 0', time.clock() - t0
 
-#        t0 = time.clock()    
-        np.outer(di_input, self.inptc, self.param.wi_tdiff)
+#        t0 = time.clock()   
+#        t0 = time.clock()
+#        a_gpu = gpuarray.to_gpu(di_input.astype(np.float32))  
+#        print 'hi',time.clock()-t0
+#        t0 = time.clock()
+#        self.gOuter.gOuter(a_gpu, self.b_gpu, self.c_gpu) 
+#        print 'hi2',time.clock()-t0
+#        t0 = time.clock()
+#        self.param.wi_tdiff = self.c_gpu.get()
+#        print 'hi3',time.clock()-t0
+#        
+#        a_gpu = gpuarray.to_gpu(df_input.astype(np.float32))        
+#        self.gOuter.gOuter(a_gpu, self.b_gpu, self.c_gpu) 
+#        self.param.wf_tdiff = self.c_gpu.get()
+#        a_gpu = gpuarray.to_gpu(do_input.astype(np.float32))        
+#        self.gOuter.gOuter(a_gpu, self.b_gpu, self.c_gpu) 
+#        self.param.wo_tdiff = self.c_gpu.get()
+#        a_gpu = gpuarray.to_gpu(dg_input.astype(np.float32))        
+#        self.gOuter.gOuter(a_gpu, self.b_gpu, self.c_gpu) 
+#        self.param.wg_tdiff = self.c_gpu.get()
+        
+#        t0 = time.clock()
+        np.outer(di_input, self.inptc, self.param.wi_tdiff) 
         np.outer(df_input, self.inptc, self.param.wf_tdiff)
         np.outer(do_input, self.inptc, self.param.wo_tdiff)
         np.outer(dg_input, self.inptc, self.param.wg_tdiff)
@@ -366,6 +396,11 @@ class LstmNetwork():
         self.out_node_list = []
         # input sequence
         self.x_list = []
+        
+        self.gOuter1 = gOuter.gOuter(layer_dims[1]/10,3)
+        self.gOuter2 = gOuter.gOuter(layer_dims[1]/25,layer_dims[1]/25)
+        self.gOuter1.gCompile()
+        self.gOuter2.gCompile()
 
     def y_list_is(self, y_list):
         """
@@ -423,15 +458,15 @@ class LstmNetwork():
 
     def x_list_add(self, x, dropout_rate):
         self.x_list.append(x)
-        lstm_states=list()
         if len(self.x_list) > len(self.lstm_node_list):
+            lstm_states=list()
             # need to add new lstm node, create new state mem
             for lyr in range(self.num_layers-2):
                 lstm_states.append(LstmState(self.lstm_params[lyr].out_dim, self.lstm_params[lyr].in_dim))
             lstm_states.append(OutState(self.lstm_params[-1].out_dim, self.lstm_params[-1].in_dim))
             lstm_nodes=list()
             for lyr in range(self.num_layers-2):
-                lstm_nodes.append(LstmNode(self.lstm_params[lyr], lstm_states[lyr]))
+                lstm_nodes.append(LstmNode(self.lstm_params[lyr], lstm_states[lyr], self.gOuter1 if lyr==0 else self.gOuter2))
             self.lstm_node_list.append(lstm_nodes)
             self.out_node_list.append(OutNode(self.lstm_params[-1], lstm_states[-1]))
 
