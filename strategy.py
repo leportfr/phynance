@@ -77,13 +77,13 @@ def trade_abs(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit
     
     buy=1
     for i,sp in enumerate(stock_price):
-        if trades[i]*buy > 0.5:
+        if trades[i]*buy>0.5 and dollars>=(stock_price[i]*askmul+com):
             newshares=int((dollars-com)/(stock_price[i]*askmul))
             shares+=newshares
 #            print 'if', shares, dollars
             dollars-=newshares*(stock_price[i]*askmul)+com
             buy*=-1
-        elif trades[i]*buy < -0.5:
+        elif trades[i]*buy<-0.5 and shares>0:
             dollars+=shares*(stock_price[i]*bidmul)-com
 #            print 'elif', shares, dollars
             shares=0
@@ -102,12 +102,12 @@ def trade(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit):
     bidmul=1.0-bidask/2.0
     
     for i,sp in enumerate(stock_price):
-        if trades[i] > 0.5:
+        if trades[i]>0.5 and dollars>=(stock_price[i]*askmul+com):
             newshares=int((dollars-com)/(stock_price[i]*askmul))
             shares+=newshares
 #            print 'if', shares, dollars
             dollars-=newshares*(stock_price[i]*askmul)+com
-        elif trades[i] < -0.5:
+        elif trades[i]<-0.5 and shares>0:
             dollars+=shares*(stock_price[i]*bidmul)-com
 #            print 'elif', shares, dollars
             shares=0

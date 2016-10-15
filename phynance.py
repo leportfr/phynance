@@ -33,9 +33,9 @@ datasize = df.shape[0]
 init_learn_rate = 0.0003
 learn_factor = 0.1
 ema_factor = 0.8
-l2_factor = 0.02
-dropout_rate = 0.5
-mem_cells = [50,50,50]
+l2_factor = 0.0
+dropout_rate = 0.0
+mem_cells = [50,50]
 
 ##array parameters
 history_len = 365
@@ -120,24 +120,25 @@ plots[-1].setLogMode(x=False, y=True)
 plots[-1].showGrid(x=False, y=True)
 curves.append(plots[-1].plot(pen='r')) #curve 2
 curves.append(plots[-1].plot(pen='g')) #curve 3
+curves.append(plots[-1].plot(pen='y')) #curve 4
 win.nextRow()
 
 plots.append(win.addPlot(title='training return',colspan=len(layer_dims)-1))
 plots[-1].showGrid(x=False, y=True)
-curves.append(plots[-1].plot(pen='r')) #curve 4
-curves.append(plots[-1].plot(pen='g')) #curve 5
+curves.append(plots[-1].plot(pen='r')) #curve 5
+curves.append(plots[-1].plot(pen='g')) #curve 6
 win.nextRow()
 
 plots.append(win.addPlot(title='test set return',colspan=int((len(layer_dims)-1)/2)))
-curves.append(plots[-1].plot(stepMode=True, fillLevel=0, brush=(0,0,255,150))) #curve 6
+curves.append(plots[-1].plot(stepMode=True, fillLevel=0, brush=(0,0,255,150))) #curve 7
 plots.append(win.addPlot(title='test set return history',colspan=len(layer_dims)-1-int((len(layer_dims)-1)/2)))
 plots[-1].showGrid(x=False, y=True)
-curves.append(plots[-1].plot(pen='g')) #curve 7
-curves.append(plots[-1].plot(pen='b')) #curve 8
-curves.append(plots[-1].plot(pen='r')) #curve 9
-curves.append(plots[-1].plot(pen='b')) #curve 10
-curves.append(plots[-1].plot(pen='g')) #curve 11
-curves.append(plots[-1].plot(pen='y')) #curve 12
+curves.append(plots[-1].plot(pen='g')) #curve 8
+curves.append(plots[-1].plot(pen='b')) #curve 9
+curves.append(plots[-1].plot(pen='r')) #curve 10
+curves.append(plots[-1].plot(pen='b')) #curve 11
+curves.append(plots[-1].plot(pen='g')) #curve 12
+curves.append(plots[-1].plot(pen='y')) #curve 13
 win.nextRow()
 
 for i in range(len(layer_dims)-1):
@@ -164,6 +165,7 @@ for i in range(len(layer_dims)-1):
 #outfile = 'C:\Users\leportfr\Desktop\Phynance\outPickle'
 #openfile = open(outfile, 'wb')
 loss_list = list()
+test_loss_list_ma = list()
 loss_list_ma = list()
 #learnRate = list()
 return_list = list()
@@ -172,8 +174,9 @@ next_test_return = list()
 learn_rate_listW = list()
 learn_rate_listB = list()
 cur_iter=0
+t5=0
 def iterate():
-    global curves, plots, cur_iter
+    global curves, plots, cur_iter, t5
     if random_batch:
         train_set = np.random.randint(num_training_sets) 
     else:
@@ -181,6 +184,7 @@ def iterate():
     
     t1 = time.clock()
     print '\ncur iter: ', cur_iter, train_set
+    print 'iteration time: ', time.clock() - t5
     for val in x_list_train[train_set]:
         lstm_net.x_list_add(val, dropout_rate)
     predList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
@@ -197,55 +201,61 @@ def iterate():
         t2 = time.clock()
         for lstm_param in lstm_net.lstm_params:
             lstm_param.apply_diff(l2=l2_factor, lr=learn_factor)
-        learn_rate_listW.append(lstm_net.getLearnRateStatsW())
-        learn_rate_listB.append(lstm_net.getLearnRateStatsB())
         print 'apply time: ', time.clock() - t2
     
     lstm_net.x_list_clear()
     
+    t4 = time.clock()
     curves[0].setData(rescaled_data[train_set,:,0])
     curves[1].setData(predList[:,0])
     curves[2].setData(loss_list)
-    curves[4].setData(return_list)
+    curves[5].setData(return_list)
     if cur_iter%100 == 0:
         loss_list_ma = movingaverage(loss_list,100)
         return_list_ma = movingaverage(return_list,100)
         curves[3].setData(np.arange(len(loss_list_ma))+100,loss_list_ma)
-        curves[5].setData(np.arange(len(return_list_ma))+100,return_list_ma)
+        curves[6].setData(np.arange(len(return_list_ma))+100,return_list_ma)
     if cur_iter%500 == 0:
         t3 = time.clock()
         test_return_list = []
-        
+        test_loss_list = []
         for test_set,test_setX in enumerate(x_list_test):
             for val in test_setX:
                 lstm_net.x_list_add(val, 0.0)
             predTestList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
+            test_loss_list.append(np.sum(lstm.loss_func(predTestList[-train_len:,0],ytest_list_full[test_set,-train_len:])))
             if test_set==0:
                 next_test_return.append((strategy.trade(testData[test_set,-train_len:],predTestList[-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
             else:
                 test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
             lstm_net.x_list_clear()
+        test_loss_list_ma.append(np.average(test_loss_list))
+        print 'test time: ', time.clock() - t3
+        curves[4].setData(np.arange(len(test_loss_list_ma))*500,test_loss_list_ma)
         
         y_test_hist,x_test_hist = np.histogram(test_return_list, bins=np.linspace(-0.5, 1, 15))
-        curves[6].setData(x_test_hist, y_test_hist)  
+        curves[7].setData(x_test_hist, y_test_hist)  
         
         ave=np.average(test_return_list)
         std=np.std(test_return_list)
         test_return_plot_list.append([np.amin(test_return_list),ave-std,ave,ave+std,np.amax(test_return_list)])
         for i in range(5):
-            curves[7+i].setData(np.arange(len(test_return_plot_list))*500,np.array(test_return_plot_list)[:,i])
-        curves[12].setData(np.arange(len(test_return_plot_list))*500,next_test_return)
-        print 'test time: ', time.clock() - t3
-    if cur_iter%mini_batch_size == 0:
+            curves[8+i].setData(np.arange(len(test_return_plot_list))*500,np.array(test_return_plot_list)[:,i])
+        curves[13].setData(np.arange(len(test_return_plot_list))*500,next_test_return)
+    if cur_iter%10 == 0:
+        learn_rate_listW.append(lstm_net.getLearnRateStatsW())
+        learn_rate_listB.append(lstm_net.getLearnRateStatsB())
         for i in range(len(layer_dims)-1):
             for j in range(5):
-                curves[13+5*i+j].setData(np.arange(len(learn_rate_listW))*mini_batch_size,np.array(learn_rate_listW)[:,i,j])
-                curves[(13+5*(len(layer_dims)-1))+5*i+j].setData(np.arange(len(learn_rate_listB))*mini_batch_size,np.array(learn_rate_listB)[:,i,j])                
+                curves[14+5*i+j].setData(np.arange(len(learn_rate_listW))*10,np.array(learn_rate_listW)[:,i,j])
+                curves[(14+5*(len(layer_dims)-1))+5*i+j].setData(np.arange(len(learn_rate_listB))*10,np.array(learn_rate_listB)[:,i,j])   
+    print 'display time: ', time.clock() - t4
     
 #    pickle.dump(lstm_net.getParams(), openfile)
     print 'totaltime', time.clock() - t1
     print 'loss: ', loss_list[-1]
     cur_iter+=1
+    t5 = time.clock()
     
 timer = QtCore.QTimer()
 timer.timeout.connect(iterate)
