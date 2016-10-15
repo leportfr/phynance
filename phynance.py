@@ -45,7 +45,7 @@ num_training_sets = 100
 mini_batch_size = 10
 random_batch = 1
 
-num_test_sets = 5
+num_test_sets = 100
 
 test_train_cutoff = 1000
 test_limit = 2500
@@ -58,15 +58,24 @@ layer_dims = [x_dim]+mem_cells+[y_dim]
 lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate, ema_factor)
 
 np.random.seed(10)
-## build and scale input arrays
+## build and scale input and test arrays
 inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
 inputDataDiff = np.diff(inputData,axis=1)
-scaleFactorB=np.min(inputDataDiff,axis=1)
-scaleFactorA=scalerangeX/(np.max(inputDataDiff,axis=1)-scaleFactorB)
+
+testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1:i+test_train_cutoff+2*history_len+2*train_len+2] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2),size=num_test_sets-1,replace=False)])
+testData = np.concatenate([[np.array(df).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1]],testData])
+testDataDiff = np.diff(testData,axis=1)
+
+scaleFactorB=np.amin([np.amin(inputDataDiff),np.amin(testDataDiff)])
+scaleFactorA=scalerangeX/(np.amax([np.amax(inputDataDiff),np.amax(testDataDiff)])-scaleFactorB)
+
 scaledData = scaleX(scaleFactorA, scaleFactorB, inputDataDiff).T
 x_list_train = np.reshape(scaledData.T,[num_training_sets,history_len+train_len,1])
 
-## build and scale output arrays
+scaledTestData = scaleX(scaleFactorA, scaleFactorB, testDataDiff).T
+x_list_test = np.reshape(scaledTestData.T,[num_test_sets,history_len+train_len,1])
+
+## build and scale output and test arrays
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in inputData])[1]
 y_list_full = np.zeros([num_training_sets,history_len+train_len])
 mult=1
@@ -82,15 +91,6 @@ y_list_full = scaleY(scaleFactorAY, scaleFactorBY, y_list_full).T
 y_list_train = np.reshape(y_list_full[-train_len:].T,[num_training_sets,train_len,1])
 rescaled_data = np.reshape(rescaleY(scaleFactorAY, scaleFactorBY, y_list_full).T,[num_training_sets,len(y_list_full),1])
 
-## build and scale test arrays
-testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1:i+test_train_cutoff+2*history_len+2*train_len+2] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2),size=num_test_sets-1,replace=False)])
-testData = np.concatenate([[np.array(df).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1]],testData])
-testDataDiff = np.diff(testData,axis=1)
-scaleFactorBT=np.min(testDataDiff,axis=1)
-scaleFactorAT=scalerangeX/(np.max(testDataDiff,axis=1)-scaleFactorBT)
-scaledTestData = scaleX(scaleFactorAT, scaleFactorBT, testDataDiff).T
-x_list_test = np.reshape(scaledTestData.T,[num_test_sets,history_len+train_len,1])
-
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in testData])[1]
 ytest_list_full = np.zeros([num_test_sets,history_len+train_len])
 mult=1
@@ -101,7 +101,7 @@ for j,sublist in enumerate(buySellList):
 ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:])[-1] for i in range(num_test_sets)]
 
 ###------ build visualization window and execute training ------###
-wintitle='rndiffin,lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+wintitle='rndiffin1scl,lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
 win.resize(1575,825)
