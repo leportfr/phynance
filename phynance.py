@@ -9,13 +9,13 @@ from pyqtgraph.Qt import QtGui, QtCore
 from dataload import loadData
 import lstm
 
-scalerangeX=1.6
+scalerangeX=10
 def scaleX(a,b,x):
     return (a*(x.T-b)-scalerangeX/2.0).T
 def rescaleX(a,b,y):
     return b+(y+scalerangeX/2.0)/a
 
-scalerangeY=1.6  
+scalerangeY=2.0 
 def scaleY(a,b,x):
     return (a*(x.T-b)-scalerangeY/2.0).T 
 def rescaleY(a,b,y):
@@ -33,7 +33,7 @@ datasize = df.shape[0]
 init_learn_rate = 0.0003
 learn_factor = 0.1
 ema_factor = 0.8
-l2_factor = 0.0
+l2_factor = 0.01
 dropout_rate = 0.0
 mem_cells = [50,50,50]
 
@@ -41,7 +41,7 @@ mem_cells = [50,50,50]
 history_len = 365
 train_len = 100
 
-num_training_sets = 100
+num_training_sets = 500
 mini_batch_size = 10
 random_batch = 1
 
@@ -53,27 +53,31 @@ test_limit = 2500
 ###------ build and scale input and output arrays ------###
 iterations = int(1e6)
 x_dim = 1#x_list.shape[1]
-y_dim = x_dim
+y_dim = 1
 layer_dims = [x_dim]+mem_cells+[y_dim]
 lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate, ema_factor)
 
 np.random.seed(10)
 ## build and scale input and test arrays
 inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-inputDataDiff = np.diff(inputData,axis=1)
-
 testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1:i+test_train_cutoff+2*history_len+2*train_len+2] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2),size=num_test_sets-1,replace=False)])
 testData = np.concatenate([[np.array(df).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1]],testData])
-testDataDiff = np.diff(testData,axis=1)
 
-scaleFactorB=np.amin([np.amin(inputDataDiff),np.amin(testDataDiff)])
-scaleFactorA=scalerangeX/(np.amax([np.amax(inputDataDiff),np.amax(testDataDiff)])-scaleFactorB)
+inputDataDiffQuot = (inputData[:,1:]-inputData[:,:-1])/inputData[:,:-1]
+testDataDiffQuot = (testData[:,1:]-testData[:,:-1])/testData[:,:-1]
+minval = np.amin([np.amin(np.abs(inputDataDiffQuot[np.nonzero(inputDataDiffQuot)])),np.amin(np.abs(testDataDiffQuot[np.nonzero(testDataDiffQuot)]))])/10.0
+inputDataDiff = np.array([np.sign(inputDataDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataDiffQuot/minval)))])
+testDataDiff = np.array([np.sign(testDataDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataDiffQuot/minval)))])
+#inputDataDiff = np.concatenate([inputDataDiff,[np.diff(inputData,axis=1)]])
+#testDataDiff = np.concatenate([testDataDiff,[np.diff(testData,axis=1)]])
 
-scaledData = scaleX(scaleFactorA, scaleFactorB, inputDataDiff).T
-x_list_train = np.reshape(scaledData.T,[num_training_sets,history_len+train_len,1])
+scaleFactorB=np.amin(np.amin(np.concatenate([inputDataDiff,testDataDiff],axis=1),axis=1),axis=1)
+scaleFactorA=scalerangeX/(np.amax(np.amax(np.concatenate([inputDataDiff,testDataDiff],axis=1),axis=1),axis=1)-scaleFactorB)
+#print np.average([np.average(inputDataDiff),np.average(testDataDiff)]), np.amin([np.amin(inputDataDiff),np.amin(testDataDiff)]), np.amax([np.amax(inputDataDiff),np.amax(testDataDiff)])
+#sys.exit()
 
-scaledTestData = scaleX(scaleFactorA, scaleFactorB, testDataDiff).T
-x_list_test = np.reshape(scaledTestData.T,[num_test_sets,history_len+train_len,1])
+x_list_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputDataDiff),(1,2,0))
+x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff),(1,2,0))
 
 ## build and scale output and test arrays
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in inputData])[1]
@@ -101,7 +105,7 @@ for j,sublist in enumerate(buySellList):
 ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:])[-1] for i in range(num_test_sets)]
 
 ###------ build visualization window and execute training ------###
-wintitle='rndiffin1scl,lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+wintitle='rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
 win.resize(1575,825)

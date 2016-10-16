@@ -60,9 +60,9 @@ class OutParam:
         self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff + 1.e-12
         #update learn rates   
         self.wy_lr *= np.clip(1.0 + lr * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2, 0.5, 2.0)
-        np.clip(self.wy_lr, 1.e-12, 0.25, out=self.wy_lr)
+        np.clip(self.wy_lr, 1.e-12, 0.1, out=self.wy_lr)
         self.by_lr *= np.clip(1.0 + lr * self.by_diff * self.by_diff_ema / self.by_diff_ema2, 0.5, 2.0)
-        np.clip(self.by_lr, 1.e-12, 0.25, out=self.by_lr)
+        np.clip(self.by_lr, 1.e-12, 0.1, out=self.by_lr)
         #update emas
         self.wy_diff_ema *= self.ema_rate
         self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
@@ -169,21 +169,21 @@ class LstmParam:
         self.bo_diff_ema2 += (1. - self.ema_rate) * self.bo_diff * self.bo_diff + 1.e-12
         #update learn rates        
         self.wg_lr *= np.clip(1.0 + lr * self.wg_diff * self.wg_diff_ema / self.wg_diff_ema2, 0.5, 2.0)
-        np.clip(self.wg_lr, 1.e-12, 0.25, out=self.wg_lr)
+        np.clip(self.wg_lr, 1.e-12, 0.1, out=self.wg_lr)
         self.wi_lr *= np.clip(1.0 + lr * self.wi_diff * self.wi_diff_ema / self.wi_diff_ema2, 0.5, 2.0)
-        np.clip(self.wi_lr, 1.e-12, 0.25, out=self.wi_lr)
+        np.clip(self.wi_lr, 1.e-12, 0.1, out=self.wi_lr)
         self.wf_lr *= np.clip(1.0 + lr * self.wf_diff * self.wf_diff_ema / self.wf_diff_ema2, 0.5, 2.0)
-        np.clip(self.wf_lr, 1.e-12, 0.25, out=self.wf_lr)
+        np.clip(self.wf_lr, 1.e-12, 0.1, out=self.wf_lr)
         self.wo_lr *= np.clip(1.0 + lr * self.wo_diff * self.wo_diff_ema / self.wo_diff_ema2, 0.5, 2.0)
-        np.clip(self.wo_lr, 1.e-12, 0.25, out=self.wo_lr)
+        np.clip(self.wo_lr, 1.e-12, 0.1, out=self.wo_lr)
         self.bg_lr *= np.clip(1.0 + lr * self.bg_diff * self.bg_diff_ema / self.bg_diff_ema2, 0.5, 2.0)
-        np.clip(self.bg_lr, 1.e-12, 0.25, out=self.bg_lr)
+        np.clip(self.bg_lr, 1.e-12, 0.1, out=self.bg_lr)
         self.bi_lr *= np.clip(1.0 + lr * self.bi_diff * self.bi_diff_ema / self.bi_diff_ema2, 0.5, 2.0)
-        np.clip(self.bi_lr, 1.e-12, 0.25, out=self.bi_lr)
+        np.clip(self.bi_lr, 1.e-12, 0.1, out=self.bi_lr)
         self.bf_lr *= np.clip(1.0 + lr * self.bf_diff * self.bf_diff_ema / self.bf_diff_ema2, 0.5, 2.0)
-        np.clip(self.bf_lr, 1.e-12, 0.25, out=self.bf_lr)
+        np.clip(self.bf_lr, 1.e-12, 0.1, out=self.bf_lr)
         self.bo_lr *= np.clip(1.0 + lr * self.bo_diff * self.bo_diff_ema / self.bo_diff_ema2, 0.5, 2.0)
-        np.clip(self.bo_lr, 1.e-12, 0.25, out=self.bo_lr)
+        np.clip(self.bo_lr, 1.e-12, 0.1, out=self.bo_lr)
         #update emas
         self.wg_diff_ema *= self.ema_rate
         self.wg_diff_ema += (1. - self.ema_rate) * self.wg_diff
