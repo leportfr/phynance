@@ -1,6 +1,6 @@
 import numpy as np
 import numba
-import time
+from time import clock
 
 sdolinit = 1.0e5
 bidaskinit = 0.005
@@ -30,56 +30,49 @@ def ewma_strategy(stock_price, pred_ewma, sdol=sdolinit, bidask=bidaskinit, com=
     
     return value
     
-@numba.jit(nopython=False)    
-def ideal_strategy(stock_price, sdol=sdolinit, sshares=None, bidask=bidaskinit, com=cominit):
-    if sshares is not None:
-        flag=False
-        shares=sshares
-        switch=1
-    else:
-        flag=True
-        shares=0
-        switch=-1
-        
+@numba.jit(nopython=True)    
+def ideal_strategy(stock_price, sdol=sdolinit, sshares=0, bidask=bidaskinit, com=cominit):        
     askmul=1.0+bidask/2.0
     bidmul=1.0-bidask/2.0
 #    buySellList=list()
+    dollars=sdol
     pos1=0
     pos2=0
-    dollars=0
     
-    diff=np.diff(stock_price[:])
-    for i,val in enumerate(diff):
-        if val > 0:
-            diff[i] = 1
-        elif val < 0:
-            diff[i] = 0
-        else:
-            diff[i] = diff[i-1]
+    diff=np.diff(stock_price)
+    diff[(diff==0).nonzero()]=diff[(diff==0).nonzero()[0]-1]
+    diff[diff>0]=1
+    diff[diff<0]=0
+#    diff=(diff>0).astype(int)
     shifts=np.diff(diff)
-    enumshifts=np.array(list(enumerate(shifts)))
-    changePoints=enumshifts[enumshifts[:,1]!=0]
+    nzshifts=shifts.nonzero()[0]
     
-    if len(changePoints)==0:
-        return sdol+shares*stock_price[0]*bidmul-com
+    changePoints=np.zeros(len(nzshifts)+1)
+    changePoints[1:]=nzshifts
     
-    if changePoints[0,1]==switch:
-        changePoints=np.concatenate(([[[-1,-switch]],changePoints]))
-    
-    if flag:
-        dollars=sdol 
+    if sshares > 0:
         shift=0
-    else:
-        pos2=int(changePoints[0,0]+1)
-        dollars=sdol
-        dollars+=shares*(stock_price[pos2]*bidmul)-com
+        if len(nzshifts)==0:
+            return dollars+sshares*stock_price[0]*bidmul-com#,[])
+        if shifts[nzshifts[0]]==1:
+            changePoints[0]=-1
+        else: shift+=1
+            
+        pos2=int(changePoints[0+shift]+1)
+        dollars+=sshares*(stock_price[pos2]*bidmul)-com
+        shift +=1
 #        buySellList.append(pos2)
-        shares=0
-        shift=1
+    else:
+        shift=0
+        if len(nzshifts)==0:
+            return dollars#,[])
+        if shifts[nzshifts[0]]==-1:
+            changePoints[0]=-1
+        else: shift+=1
         
-    for i in np.arange((len(changePoints)-shift)/2):
-        pos1=int(changePoints[2*i+shift,0]+1)
-        pos2=int(changePoints[2*i+1+shift,0]+1)
+    for i in range((len(changePoints)-shift)/2):
+        pos1=int(changePoints[2*i+shift]+1)
+        pos2=int(changePoints[2*i+1+shift]+1)
         orgdollars=dollars
         
         shares=int((dollars-com)/(stock_price[pos1]*askmul))
@@ -87,14 +80,13 @@ def ideal_strategy(stock_price, sdol=sdolinit, sshares=None, bidask=bidaskinit, 
         dollars+=shares*(stock_price[pos2]*bidmul)-com
         
         if orgdollars>dollars:
-#            print 'skip',pos1
             dollars=orgdollars
 #        else:
 #            buySellList.append(pos1)
 #            buySellList.append(pos2)
             
     if (len(changePoints)-shift)%2==1:
-        pos1=int(changePoints[-1,0]+1)
+        pos1=int(changePoints[-1]+1)
         orgdollars=dollars
         
         shares=int((dollars-com)/(stock_price[pos1]*askmul))
@@ -102,16 +94,17 @@ def ideal_strategy(stock_price, sdol=sdolinit, sshares=None, bidask=bidaskinit, 
         dollars+=shares*(stock_price[-1]*bidmul)-com
         
         if orgdollars>dollars:
-#            print 'skip',pos1
             dollars=orgdollars
 #        else:
 #            buySellList.append(pos1)
     
     return dollars#,buySellList)
    
-@numba.jit(nopython=False) 
+@numba.jit(nopython=True) 
 def buysellVal(stock_price, sval=sdolinit, bidask=bidaskinit, com=cominit):
-    s_p = np.pad(stock_price,(0,3),'edge')
+    s_p = np.zeros(len(stock_price)+3)
+    s_p[:-3] = stock_price
+    s_p[-3:] = stock_price[-1]
     
     askmul=1.0+bidask/2.0
     bidmul=1.0-bidask/2.0
@@ -120,13 +113,13 @@ def buysellVal(stock_price, sval=sdolinit, bidask=bidaskinit, com=cominit):
     for i in range(len(s_p)-3):
         shares=int((sval-com)/(s_p[i]*askmul))
         dollars=sval-shares*(s_p[i]*askmul)-com
-        buyval[i] = ideal_strategy(s_p[i+1:], sdol=dollars, sshares=shares, bidask=bidask, com=com) / ideal_strategy(s_p[i:], sdol=sval, sshares=None, bidask=bidask, com=com)
+        buyval[i] = ideal_strategy(s_p[i+1:], sdol=dollars, sshares=shares, bidask=bidask, com=com) / ideal_strategy(s_p[i:], sdol=sval, sshares=0, bidask=bidask, com=com)
         
     sellval=np.zeros(len(s_p)-3)
     for i in range(len(s_p)-3):
         shares=int((sval)/(s_p[i]*bidmul))
         dollars=sval-shares*(s_p[i]*bidmul)
-        sellval[i] = ideal_strategy(s_p[i+1:], sdol=sval-com, sshares=None, bidask=bidask, com=com) / ideal_strategy(s_p[i:], sdol=dollars, sshares=shares, bidask=bidask, com=com)
+        sellval[i] = ideal_strategy(s_p[i+1:], sdol=sval-com, sshares=0, bidask=bidask, com=com) / ideal_strategy(s_p[i:], sdol=dollars, sshares=shares, bidask=bidask, com=com)
         
     combval=np.zeros(len(s_p)-3)
     for i,val in enumerate(buyval):
@@ -137,6 +130,84 @@ def buysellVal(stock_price, sval=sdolinit, bidask=bidaskinit, com=cominit):
         else:
             combval[i] = 1.0
     return combval
+    
+#def ideal_strategySlow(stock_price, sdol=sdolinit, sshares=None, bidask=bidaskinit, com=cominit):
+#    if sshares is not None:
+#        flag=False
+#        shares=sshares
+#        switch=1
+#    else:
+#        flag=True
+#        shares=0
+#        switch=-1
+#        
+#    askmul=1.0+bidask/2.0
+#    bidmul=1.0-bidask/2.0
+#    buySellList=list()
+#    pos1=0
+#    pos2=0
+#    dollars=0
+#    
+#    diff=np.diff(stock_price[:])
+#    for i,val in enumerate(diff):
+#        if val > 0:
+#            diff[i] = 1
+#        elif val < 0:
+#            diff[i] = 0
+#        else:
+#            diff[i] = diff[i-1]
+#    shifts=np.diff(diff)
+#    enumshifts=np.array(list(enumerate(shifts)))
+#    changePoints=enumshifts[enumshifts[:,1]!=0]
+#    
+#    if len(changePoints)==0:
+#        return (sdol+shares*stock_price[0]*bidmul-com,[])
+#    
+#    if changePoints[0,1]==switch:
+#        changePoints=np.concatenate(([[[-1,-switch]],changePoints]))
+#    
+#    if flag:
+#        dollars=sdol 
+#        shift=0
+#    else:
+#        pos2=int(changePoints[0,0]+1)
+#        dollars=sdol
+#        dollars+=shares*(stock_price[pos2]*bidmul)-com
+#        buySellList.append(pos2)
+#        shares=0
+#        shift=1
+#        
+#    for i in np.arange((len(changePoints)-shift)/2):
+#        pos1=int(changePoints[2*i+shift,0]+1)
+#        pos2=int(changePoints[2*i+1+shift,0]+1)
+#        orgdollars=dollars
+#        
+#        shares=int((dollars-com)/(stock_price[pos1]*askmul))
+#        dollars-=shares*(stock_price[pos1]*askmul)+com
+#        dollars+=shares*(stock_price[pos2]*bidmul)-com
+#        
+#        if orgdollars>dollars:
+##            print 'skip',pos1
+#            dollars=orgdollars
+#        else:
+#            buySellList.append(pos1)
+#            buySellList.append(pos2)
+#            
+#    if (len(changePoints)-shift)%2==1:
+#        pos1=int(changePoints[-1,0]+1)
+#        orgdollars=dollars
+#        
+#        shares=int((dollars-com)/(stock_price[pos1]*askmul))
+#        dollars-=shares*(stock_price[pos1]*askmul)+com
+#        dollars+=shares*(stock_price[-1]*bidmul)-com
+#        
+#        if orgdollars>dollars:
+##            print 'skip',pos1
+#            dollars=orgdollars
+#        else:
+#            buySellList.append(pos1)
+#    
+#    return (dollars,buySellList)
     
 #def ideal_strategyOld(stock_price, sdol=sdolinit, bidask=bidaskinit, com=cominit):
 #    shifts=np.diff(np.array(np.diff(stock_price[:])>0,dtype=int))

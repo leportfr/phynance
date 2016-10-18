@@ -1,5 +1,5 @@
 import numpy as np
-import time
+from time import clock
 import strategy
 import cPickle as pickle
 import sys
@@ -41,8 +41,8 @@ mem_cells = [10,10]
 history_len = 365
 train_len = 100
 
-num_training_sets = 10
-mini_batch_size = 3
+num_training_sets = 100
+mini_batch_size = 10
 random_batch = 1
 
 num_test_sets = 100
@@ -185,30 +185,30 @@ def iterate():
     else:
         train_set = cur_iter%num_training_sets    
     
-    t1 = time.clock()
+    t1 = clock()
     print '\ncur iter: ', cur_iter, train_set
-    print 'iteration time: ', time.clock() - t5
+    print 'iteration time: ', clock() - t5
     for val in x_list_train[train_set]:
         lstm_net.x_list_add(val, dropout_rate)
     predList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
     return_list.append((strategy.trade_val(inputData[train_set,-train_len:],predList[-train_len:,0], sdol=sdol)[-1]-sdol)/(ideal_return[train_set]-sdol))
     return_list_ma=[]
-    print 'add x_val time: ', time.clock() - t1  
+    print 'add x_val time: ', clock() - t1  
     
-    t0 = time.clock()
+    t0 = clock()
     loss_list.append(lstm_net.y_list_is(y_list_train[train_set])[0]/scaleFactorAY/scaleFactorAY)
     loss_list_ma=[]
-    print 'train time: ', time.clock() - t0
+    print 'train time: ', clock() - t0
     
     if cur_iter%mini_batch_size == 0:
-        t2 = time.clock()
+        t2 = clock()
         for lstm_param in lstm_net.lstm_params:
             lstm_param.apply_diff(l2=l2_factor, lr=learn_factor)
-        print 'apply time: ', time.clock() - t2
+        print 'apply time: ', clock() - t2
     
     lstm_net.x_list_clear()
     
-    t4 = time.clock()
+    t4 = clock()
     curves[0].setData(rescaled_data[train_set,:,0])
     curves[1].setData(predList[:,0])
     curves[2].setData(loss_list)
@@ -219,7 +219,7 @@ def iterate():
         curves[3].setData(np.arange(len(loss_list_ma))+100,loss_list_ma)
         curves[6].setData(np.arange(len(return_list_ma))+100,return_list_ma)
     if cur_iter%500 == 0:
-        t3 = time.clock()
+        t3 = clock()
         test_return_list = []
         test_loss_list = []
         predTestList = []
@@ -234,7 +234,7 @@ def iterate():
                 test_return_list.append((strategy.trade_val(testData[test_set,-train_len:],predTestList[-1][-train_len:,0], sdol=sdol)[-1]-sdol)/(ideal_test_return[test_set]-sdol))
             lstm_net.x_list_clear()
         test_loss_list_ma.append(np.average(test_loss_list))
-        print 'test time: ', time.clock() - t3
+        print 'test time: ', clock() - t3
         curves[4].setData(np.arange(len(test_loss_list_ma))*500,test_loss_list_ma)
         
         y_test_hist,x_test_hist = np.histogram(test_return_list, bins=np.linspace(-0.5, 1, 30))
@@ -258,13 +258,13 @@ def iterate():
     
     curves[15+10*(len(layer_dims)-1)].setData(ytest_list_full[cur_iter%num_test_sets])
     curves[15+10*(len(layer_dims)-1)+1].setData(predTestList[cur_iter%num_test_sets][:,0])
-    print 'display time: ', time.clock() - t4
+    print 'display time: ', clock() - t4
     
 #    pickle.dump(lstm_net.getParams(), openfile)
-    print 'totaltime', time.clock() - t1
+    print 'totaltime', clock() - t1
     print 'loss: ', loss_list[-1]
     cur_iter+=1
-    t5 = time.clock()
+    t5 = clock()
     
 timer = QtCore.QTimer()
 timer.timeout.connect(iterate)
