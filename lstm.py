@@ -281,7 +281,7 @@ class OutNode:
         self.state.bottom_diff_h = np.dot(self.param.wy.T, dy_input)     
     
 class LstmNode:
-    def __init__(self, lstm_param, lstm_state, gOuter):
+    def __init__(self, lstm_param, lstm_state):#, gOuter):
         # store reference to parameters and to activations
         self.state = lstm_state
         self.param = lstm_param
@@ -290,7 +290,7 @@ class LstmNode:
         # non-recurrent input concatenated with recurrent input
         self.inptc = None
         
-        self.gOuter = gOuter
+#        self.gOuter = gOuter
 #        self.b_gpu = None
 #        self.c_gpu = None
         
@@ -397,10 +397,10 @@ class LstmNetwork():
         # input sequence
         self.x_list = []
         
-        self.gOuter1 = gOuter.gOuter(layer_dims[1]/10,3)
-        self.gOuter2 = gOuter.gOuter(layer_dims[1]/25,layer_dims[1]/25)
-        self.gOuter1.gCompile()
-        self.gOuter2.gCompile()
+#        self.gOuter1 = gOuter.gOuter(layer_dims[1]/10,3)
+#        self.gOuter2 = gOuter.gOuter(layer_dims[1]/25,layer_dims[1]/25)
+#        self.gOuter1.gCompile()
+#        self.gOuter2.gCompile()
 
     def y_list_is(self, y_list):
         """
@@ -466,7 +466,7 @@ class LstmNetwork():
             lstm_states.append(OutState(self.lstm_params[-1].out_dim, self.lstm_params[-1].in_dim))
             lstm_nodes=list()
             for lyr in range(self.num_layers-2):
-                lstm_nodes.append(LstmNode(self.lstm_params[lyr], lstm_states[lyr], self.gOuter1 if lyr==0 else self.gOuter2))
+                lstm_nodes.append(LstmNode(self.lstm_params[lyr], lstm_states[lyr]))#, self.gOuter1 if lyr==0 else self.gOuter2))
             self.lstm_node_list.append(lstm_nodes)
             self.out_node_list.append(OutNode(self.lstm_params[-1], lstm_states[-1]))
 
