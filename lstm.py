@@ -240,6 +240,7 @@ class LstmParam:
 class OutState:
     def __init__(self, out_dim, in_dim):
         self.y = np.zeros(out_dim)
+        self.yhat = np.zeros(out_dim)
         self.bottom_diff_h = np.zeros_like(in_dim)
         
 class LstmState:
@@ -267,12 +268,15 @@ class OutNode:
         np.random.shuffle(dropout_list)
         self.h = h*dropout_list
         
-        self.state.y = np.tanh(np.dot(self.param.wy, self.h) + self.param.by)
+        self.state.yhat = np.dot(self.param.wy, self.h) + self.param.by
+        self.state.y = np.clip(self.state.yhat,0,None)
+#        self.state.y = np.tanh(np.dot(self.param.wy, self.h) + self.param.by)
 #        self.state.y = sigmoid(np.dot(self.param.wy, h) + self.param.by)
         
     def top_diff_is(self, top_diff_y):
 #        dy_input = top_diff_y
-        dy_input = (1. - self.state.y * self.state.y) * top_diff_y
+#        dy_input = (1. - self.state.y * self.state.y) * top_diff_y
+        dy_input =  top_diff_y + np.clip(self.state.yhat, None, 0)
 #        dy_input = (1. - self.state.y) * self.state.y * top_diff_y
 
         self.param.wy_diff += np.outer(dy_input, self.h)
