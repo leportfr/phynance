@@ -29,7 +29,75 @@ def ewma_strategy(stock_price, pred_ewma, sdol=sdolinit, bidask=bidaskinit, com=
     
     return value
     
-def ideal_strategy(stock_price, sdol=sdolinit, bidask=bidaskinit, com=cominit):
+def ideal_strategy(stock_price, sdol=sdolinit, sshares=0, bidask=bidaskinit, com=cominit):        
+    askmul=1.0+bidask/2.0
+    bidmul=1.0-bidask/2.0
+    buySellList=list()
+    dollars=sdol
+    pos1=0
+    pos2=0
+    
+    diff=np.diff(stock_price)
+    diff[(diff==0).nonzero()]=diff[(diff==0).nonzero()[0]-1]
+    diff[diff>0]=1
+    diff[diff<0]=0
+    shifts=np.diff(diff)
+    nzshifts=shifts.nonzero()[0]
+    
+    changePoints=np.zeros(len(nzshifts)+1)
+    changePoints[1:]=nzshifts
+    
+    if sshares > 0:
+        shift=0
+        if len(nzshifts)==0:
+            return (dollars+sshares*stock_price[0]*bidmul-com,[])
+        if shifts[nzshifts[0]]==1:
+            changePoints[0]=-1
+        else: shift+=1
+            
+        pos2=int(changePoints[0+shift]+1)
+        dollars+=sshares*(stock_price[pos2]*bidmul)-com
+        shift +=1
+        buySellList.append(pos2)
+    else:
+        shift=0
+        if len(nzshifts)==0:
+            return (dollars,[])
+        if shifts[nzshifts[0]]==-1:
+            changePoints[0]=-1
+        else: shift+=1
+        
+    for i in range((len(changePoints)-shift)/2):
+        pos1=int(changePoints[2*i+shift]+1)
+        pos2=int(changePoints[2*i+1+shift]+1)
+        orgdollars=dollars
+        
+        shares=int((dollars-com)/(stock_price[pos1]*askmul))
+        dollars-=shares*(stock_price[pos1]*askmul)+com
+        dollars+=shares*(stock_price[pos2]*bidmul)-com
+        
+        if orgdollars>dollars:
+            dollars=orgdollars
+        else:
+            buySellList.append(pos1)
+            buySellList.append(pos2)
+            
+    if (len(changePoints)-shift)%2==1:
+        pos1=int(changePoints[-1]+1)
+        orgdollars=dollars
+        
+        shares=int((dollars-com)/(stock_price[pos1]*askmul))
+        dollars-=shares*(stock_price[pos1]*askmul)+com
+        dollars+=shares*(stock_price[-1]*bidmul)-com
+        
+        if orgdollars>dollars:
+            dollars=orgdollars
+        else:
+            buySellList.append(pos1)
+    
+    return (dollars,buySellList)
+    
+def ideal_strategyOrg(stock_price, sdol=sdolinit, bidask=bidaskinit, com=cominit):
     shifts=np.diff(np.array(np.diff(stock_price[:])>0,dtype=int))
     enumshifts=np.array(list(enumerate(shifts)))
     changePoints=enumshifts[enumshifts[:,1]!=0]

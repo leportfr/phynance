@@ -30,7 +30,7 @@ datasize = df.shape[0]
 
 ### set RNN parameters ###
 
-init_learn_rate = 0.0003
+init_learn_rate = 0.00003
 learn_factor = 0.1
 ema_factor = 0.8
 l2_factor = 0.0
@@ -42,13 +42,13 @@ history_len = 365
 train_len = 100
 
 num_training_sets = 100
-mini_batch_size = 10
-random_batch = 1
+mini_batch_size = 100
+random_batch = 0
 
 num_test_sets = 100
 
-test_train_cutoff = 2500
-test_limit = datasize
+test_train_cutoff = 1000
+test_limit = 2500
 
 ###------ build and scale input and output arrays ------###
 iterations = int(1e6)
@@ -60,7 +60,6 @@ lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate, ema_factor)
 np.random.seed(10)
 ## build and scale input and test arrays
 inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-sys.exit()
 testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1:i+test_train_cutoff+2*history_len+2*train_len+2] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2),size=num_test_sets-1,replace=False)])
 testData = np.concatenate([[np.array(df).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1]],testData])
 
