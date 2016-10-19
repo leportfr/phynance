@@ -32,7 +32,7 @@ datasize = df.shape[0]
 
 ### set RNN parameters ###
 
-init_learn_rate = 3.e-4
+init_learn_rate = 1.e-3
 learn_factor = 0.1
 ema_factor = 0.8
 l2_factor = 0.0
@@ -43,8 +43,8 @@ mem_cells = [50,50,50]
 history_len = 365
 train_len = 100
 
-num_training_sets = 100
-mini_batch_size = 10
+num_training_sets = 1000
+mini_batch_size = 1000
 random_batch = 1
 
 num_test_sets = 100
@@ -199,12 +199,15 @@ next_test_return = list()
 learn_rate_listW = list()
 learn_rate_listB = list()
 predTestList = list()
+random_set = []
 cur_iter=0
 t5=0
 def iterate():
-    global curves, plots, cur_iter, t5, predTestList
+    global curves, plots, cur_iter, t5, predTestList, random_set
     if random_batch:
-        train_set = np.random.randint(num_training_sets) 
+        if cur_iter%num_training_sets==0:
+            random_set = np.random.choice(num_training_sets,size=num_training_sets, replace=False)
+        train_set = random_set[cur_iter%num_training_sets] 
     else:
         train_set = cur_iter%num_training_sets    
     
