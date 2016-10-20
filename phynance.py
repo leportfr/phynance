@@ -30,8 +30,8 @@ datasize = df.shape[0]
 
 ### set RNN parameters ###
 
-init_learn_rate = 0.0003
-learn_factor = 1.0
+init_learn_rate = 0.00003
+learn_factor = 1.e-6
 ema_factor = 0.8
 l2_factor = 0.0
 dropout_rate = 0.0
@@ -217,10 +217,16 @@ def iterate():
     loss_list_ma=[]
     print 'train time: ', time.clock() - t0
     
+    if cur_iter>100:
+        loss_list_ma = movingaverage(loss_list,100)
+        lf = learn_factor/(np.abs((loss_list_ma[-1] - loss_list_ma[-2]))/loss_list_ma[-1])
+    else:
+        lf = init_learn_rate    
+        
     if cur_iter%mini_batch_size == 0:
         t2 = time.clock()
         for lstm_param in lstm_net.lstm_params:
-            lstm_param.apply_diff(l2=l2_factor, lr=learn_factor)
+            lstm_param.apply_diff(l2=l2_factor, lr=lf)
         print 'apply time: ', time.clock() - t2
     
     lstm_net.x_list_clear()
@@ -231,7 +237,7 @@ def iterate():
     curves[2].setData(loss_list)
     curves[5].setData(return_list)
     if cur_iter%100 == 0:
-        loss_list_ma = movingaverage(loss_list,100)
+#        loss_list_ma = movingaverage(loss_list,100)
         return_list_ma = movingaverage(return_list,100)
         curves[3].setData(np.arange(len(loss_list_ma))+100,loss_list_ma)
         curves[6].setData(np.arange(len(return_list_ma))+100,return_list_ma)

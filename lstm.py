@@ -1,33 +1,10 @@
 import numpy as np
-import time
+from time import clock
 import sys
-import gOuter
-from numba import autojit
-from pycuda import gpuarray
-
-np.random.seed(0)
-
-@autojit
-def sigmoid(x):
-#    if any(x<-100):
-#        print 'xvals',x
-#        sys.exit()
-    return 1. / (1. + np.exp(-x))
-
-# create uniform random array w/ values in [a,b) and shape args
-def rand_arr_w(*args): 
-    return np.random.normal(loc=0.0, scale=1/np.sqrt(args[-1]+1), size=args)
-    
-def rand_arr_b(*args): 
-    return np.random.normal(loc=0.0, scale=1.0, size=args)
-    
-def loss_func(pred, label):
-    return (pred - label) ** 2
-#    return -(label*np.log(pred) + (1-label)*np.log(1-pred))
-
-def bottom_diff(pred, label):
-    return 2 * (pred - label)
-#    return pred - label
+from functions import sigmoid, rand_arr_w, rand_arr_b, loss_func, bottom_diff
+from functions import outer_add, top_diff_is_func, bottom_data_is_func, tanh
+#import gOuter
+#from pycuda import gpuarray
     
 class OutParam:
     def __init__(self, out_dim, in_dim, learn_rate, ema_rate):
@@ -53,21 +30,23 @@ class OutParam:
         self.by_lr = np.zeros(out_dim) + learn_rate
         
     def apply_diff(self, l2, lr):
+        self.wy_lr = lr
+        self.by_lr = lr
         #update ema2s
-        self.wy_diff_ema2 *= self.ema_rate
-        self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff + 1.e-12
-        self.by_diff_ema2 *= self.ema_rate
-        self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff + 1.e-12
+#        self.wy_diff_ema2 *= self.ema_rate
+#        self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff + 1.e-12
+#        self.by_diff_ema2 *= self.ema_rate
+#        self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff + 1.e-12
         #update learn rates   
-        self.wy_lr *= np.clip(1.0 + lr * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2, 0.5, 2.0)
-        np.clip(self.wy_lr, 1.e-12, 0.1, out=self.wy_lr)
-        self.by_lr *= np.clip(1.0 + lr * self.by_diff * self.by_diff_ema / self.by_diff_ema2, 0.5, 2.0)
-        np.clip(self.by_lr, 1.e-12, 0.1, out=self.by_lr)
+#        self.wy_lr *= np.clip(1.0 + lr * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2, 0.5, 2.0)
+#        np.clip(self.wy_lr, 1.e-12, 0.1, out=self.wy_lr)
+#        self.by_lr *= np.clip(1.0 + lr * self.by_diff * self.by_diff_ema / self.by_diff_ema2, 0.5, 2.0)
+#        np.clip(self.by_lr, 1.e-12, 0.1, out=self.by_lr)
         #update emas
-        self.wy_diff_ema *= self.ema_rate
-        self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
-        self.by_diff_ema *= self.ema_rate
-        self.by_diff_ema += (1. - self.ema_rate) * self.by_diff
+#        self.wy_diff_ema *= self.ema_rate
+#        self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
+#        self.by_diff_ema *= self.ema_rate
+#        self.by_diff_ema += (1. - self.ema_rate) * self.by_diff
         #update weights      
         self.wy *= (1. - self.wy_lr*l2)
         self.wy -= self.wy_lr * self.wy_diff
@@ -119,6 +98,8 @@ class LstmParam:
         self.b_lr = np.zeros(4*out_dim) + learn_rate   
 
     def apply_diff(self, l2, lr):
+        self.w_lr = lr
+        self.b_lr = lr
         #update ema2s
 #        self.w_diff_ema2 *= self.ema_rate
 #        self.w_diff_ema2 += (1. - self.ema_rate) * self.w_diff * self.w_diff + 1.e-12
@@ -135,9 +116,9 @@ class LstmParam:
 #        self.b_diff_ema *= self.ema_rate
 #        self.b_diff_ema += (1. - self.ema_rate) * self.b_diff
         #update weights
-        self.w *= (1. - lr*l2) 
-        self.w -= lr * self.w_diff
-        self.b -= lr * self.b_diff
+        self.w *= (1. - self.w_lr*l2) 
+        self.w -= self.w_lr * self.w_diff
+        self.b -= self.b_lr * self.b_diff
         # reset diffs to zero
         self.w_diff = np.zeros_like(self.w)
         self.b_diff = np.zeros_like(self.b)
@@ -185,7 +166,7 @@ class OutNode:
         np.random.shuffle(dropout_list)
         self.h = h*dropout_list
         
-        self.state.y = np.tanh(np.dot(self.param.wy, self.h) + self.param.by)
+        self.state.y = tanh(np.dot(self.param.wy, self.h) + self.param.by)
 #        self.state.y = sigmoid(np.dot(self.param.wy, h) + self.param.by)
         
     def top_diff_is(self, top_diff_y):
@@ -193,7 +174,7 @@ class OutNode:
         dy_input = (1. - self.state.y * self.state.y) * top_diff_y
 #        dy_input = (1. - self.state.y) * self.state.y * top_diff_y
 
-        self.param.wy_diff += np.outer(dy_input, self.h)
+        outer_add(dy_input, self.h, self.param.wy_diff)
         self.param.by_diff += dy_input
         
         self.state.bottom_diff_h = np.dot(self.param.wy.T, dy_input)     
@@ -206,7 +187,7 @@ class LstmNode:
         # non-recurrent input to node
         self.inpt = None
         # non-recurrent input concatenated with recurrent input
-        self.inptc = None
+        self.inptc = np.zeros(self.param.in_dim + self.param.out_dim)
         
 #        self.gOuter = gOuter
 #        self.b_gpu = None
@@ -215,80 +196,45 @@ class LstmNode:
     def bottom_data_is(self, inpt, s_prev, h_prev, dropout_rate):
         # save data for use in backprop
         self.s_prev = s_prev
-
-        # concatenate inpt(t) and h(t-1)
+        
+#        t0=clock()
         dropout_list=[0]*int(len(inpt)*dropout_rate)
         dropout_list+=[1]*(len(inpt)-len(dropout_list))
         np.random.shuffle(dropout_list)
-        self.inptc = np.hstack((inpt*dropout_list,  h_prev))
-
-        dotprod = np.dot(self.param.w, self.inptc) + self.param.b
-        self.state.g = np.tanh(dotprod[:self.param.out_dim])
-#        self.state.g = sigmoid(np.dot(self.param.wg, xc) + self.param.bg)
-        self.state.i = sigmoid(dotprod[self.param.out_dim:2*self.param.out_dim])
-        self.state.f = sigmoid(dotprod[2*self.param.out_dim:3*self.param.out_dim])
-        self.state.o = sigmoid(dotprod[3*self.param.out_dim:])       
+#        print '1', clock()-t0
         
-        self.state.s = self.state.g * self.state.i + s_prev * self.state.f
-        self.state.tanhs = np.tanh(self.state.s)
-        self.state.h = self.state.tanhs * self.state.o
-#        self.state.h = self.state.s * self.state.o
-        
-#        self.b_gpu = gpuarray.to_gpu(self.inptc.astype(np.float32))
-#        self.c_gpu = gpuarray.empty((len(self.state.i),len(self.inptc)), np.float32)
+#        t0=clock()
+        (self.state.g, self.state.i, self.state.f, self.state.o, self.state.s, 
+         self.state.tanhs, self.state.h) = bottom_data_is_func(self.inptc, inpt*dropout_list, 
+        self.param.out_dim, self.param.w, self.param.b, h_prev, s_prev)
+#        print '2', clock()-t0
     
     def top_diff_is(self, top_diff_h, top_diff_s):
-#        t0 = time.clock()
-        ds = self.state.o * (1. - self.state.tanhs * self.state.tanhs) * top_diff_h + top_diff_s
-#        ds = self.state.o * top_diff_h + top_diff_s
         
-        self.param.d_input[:self.param.out_dim] = (1. - self.state.g * self.state.g) * (self.state.i * ds)
-        self.param.d_input[self.param.out_dim:2*self.param.out_dim] = (1. - self.state.i) * self.state.i * (self.state.g * ds) 
-        self.param.d_input[2*self.param.out_dim:3*self.param.out_dim] = (1. - self.state.f) * self.state.f * (self.s_prev * ds) 
-        self.param.d_input[3*self.param.out_dim:] = (1. - self.state.o) * self.state.o * (self.state.tanhs * top_diff_h) 
-#        do_input = (1. - self.state.o) * self.state.o * (self.state.s * top_diff_h)
-#        dg_input = (1. - self.state.g) * self.state.g * dg
-#        print 'top_diff_is 0', time.clock() - t0
-
-#        t0 = time.clock()   
-#        t0 = time.clock()
-#        a_gpu = gpuarray.to_gpu(di_input.astype(np.float32))  
-#        print 'hi',time.clock()-t0
-#        t0 = time.clock()
-#        self.gOuter.gOuter(a_gpu, self.b_gpu, self.c_gpu) 
-#        print 'hi2',time.clock()-t0
-#        t0 = time.clock()
-#        self.param.wi_tdiff = self.c_gpu.get()
-#        print 'hi3',time.clock()-t0
-#        
-#        a_gpu = gpuarray.to_gpu(df_input.astype(np.float32))        
-#        self.gOuter.gOuter(a_gpu, self.b_gpu, self.c_gpu) 
-#        self.param.wf_tdiff = self.c_gpu.get()
-#        a_gpu = gpuarray.to_gpu(do_input.astype(np.float32))        
-#        self.gOuter.gOuter(a_gpu, self.b_gpu, self.c_gpu) 
-#        self.param.wo_tdiff = self.c_gpu.get()
-#        a_gpu = gpuarray.to_gpu(dg_input.astype(np.float32))        
-#        self.gOuter.gOuter(a_gpu, self.b_gpu, self.c_gpu) 
-#        self.param.wg_tdiff = self.c_gpu.get()
+#        t0 = clock()       
+        dsf = top_diff_is_func(self.param.d_input, self.param.out_dim, self.state.g, 
+                         self.state.f, self.state.i, self.state.o, self.s_prev,
+                         self.state.tanhs, top_diff_h, top_diff_s)
+#        print 'top_diff_is 0', clock() - t0
         
-#        t0 = time.clock()
-        np.outer(self.param.d_input, self.inptc, self.param.w_tdiff)
-#        print 'top_diff_is 1', time.clock() - t0
+#        t0 = clock()
+        outer_add(self.param.d_input, self.inptc, self.param.w_diff)
+#        print 'top_diff_is 1', clock() - t0
         
-#        t0 = time.clock()
-        self.param.w_diff += self.param.w_tdiff
+#        t0 = clock()
+#        self.param.w_diff += self.param.w_tdiff
         self.param.b_diff += self.param.d_input      
-#        print 'top_diff_is 2', time.clock() - t0
+#        print 'top_diff_is 2', clock() - t0
         
-#        t0 = time.clock()    
+#        t0 = clock()    
         dinptc = np.dot(self.param.w.T, self.param.d_input)
-#        print 'top_diff_is 3', time.clock() - t0
+#        print 'top_diff_is 3', clock() - t0
 
-#        t0 = time.clock() 
-        self.state.bottom_diff_s = ds * self.state.f
+#        t0 = clock() 
+        self.state.bottom_diff_s = dsf#ds * self.state.f
         self.state.bottom_diff_x = dinptc[:self.param.in_dim]
         self.state.bottom_diff_h = dinptc[self.param.in_dim:]
-#        print 'top_diff_is 4', time.clock() - t0
+#        print 'top_diff_is 4', clock() - t0
 
 class LstmNetwork():
     def __init__(self, layer_dims, learn_rate, ema_rate):
