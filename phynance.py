@@ -30,8 +30,8 @@ datasize = df.shape[0]
 
 ### set RNN parameters ###
 
-init_learn_rate = 0.00003
-learn_factor = 0.1
+init_learn_rate = 0.0003
+learn_factor = 1.0
 ema_factor = 0.8
 l2_factor = 0.0
 dropout_rate = 0.0
@@ -42,8 +42,8 @@ history_len = 365
 train_len = 100
 
 num_training_sets = 100
-mini_batch_size = 100
-random_batch = 0
+mini_batch_size = 10
+random_batch = 1
 
 num_test_sets = 100
 
@@ -87,6 +87,10 @@ for j,sublist in enumerate(buySellList):
     for i in sublist:
         y_list_full[j,i] = mult
         mult*=-1
+#for i,sublist in enumerate(y_list_full):
+#    for j,val in enumerate(sublist):
+#        if val==0:
+#            y_list_full[i,j]=y_list_full[i,j-1]
 ideal_return = [strategy.trade(inputData[i,-train_len:],y_list_full[i,-train_len:])[-1] for i in range(num_training_sets)]
 
 scaleFactorBY=-1.0
@@ -102,6 +106,10 @@ for j,sublist in enumerate(buySellList):
     for i in sublist:
         ytest_list_full[j,i] = mult
         mult*=-1
+#for i,sublist in enumerate(ytest_list_full):
+#    for j,val in enumerate(sublist):
+#        if val==0:
+#            ytest_list_full[i,j]=ytest_list_full[i,j-1]
 ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:])[-1] for i in range(num_test_sets)]
 
 ###------ build visualization window and execute training ------###
