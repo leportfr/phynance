@@ -1,9 +1,9 @@
 import numpy as np
 from pylab import imshow, show
 from timeit import default_timer as timer
-from numba import autojit
+import numba
 
-@autojit
+@numba.jit(nopython=True)
 def mandel(x, y, max_iters):
   """
     Given the real and imaginary parts of a complex number,
@@ -19,7 +19,7 @@ def mandel(x, y, max_iters):
 
   return max_iters
 
-@autojit  
+@numba.jit(nopython=True) 
 def create_fractal(min_x, max_x, min_y, max_y, image, iters):
   height = image.shape[0]
   width = image.shape[1]
@@ -34,7 +34,7 @@ def create_fractal(min_x, max_x, min_y, max_y, image, iters):
       color = mandel(real, imag, iters)
       image[y, x] = color
       
-image = np.zeros((1024*20, 1536*20), dtype = np.uint8)
+image = np.zeros((1024, 1536), dtype = np.uint8)
 start = timer()
 create_fractal(-2.0, 1.0, -1.0, 1.0, image, 20) 
 dt = timer() - start

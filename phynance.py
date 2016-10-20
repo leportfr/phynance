@@ -1,5 +1,5 @@
 import numpy as np
-import time
+from time import clock
 import strategy
 import cPickle as pickle
 import sys
@@ -28,34 +28,34 @@ def movingaverage(values, window):
 df = loadData()
 datasize = df.shape[0]
 
-### set RNN parameters ###
-
-init_learn_rate = 0.00003
-learn_factor = 1.e-6
-ema_factor = 0.8
-l2_factor = 0.0
-dropout_rate = 0.0
-mem_cells = [50,50,50]
-
 ##array parameters
 history_len = 365
 train_len = 100
 
 num_training_sets = 100
 mini_batch_size = 10
+assert(num_training_sets%mini_batch_size == 0)
 random_batch = 1
 
 num_test_sets = 100
 
-test_train_cutoff = 1000
-test_limit = 2500
+test_train_cutoff = 2500
+test_limit = datasize
+
+### set RNN parameters ###
+init_learn_rate = 3.e-3
+learn_factor = 0.1
+ema_factor = 0.8#(1.-1./num_training_sets*mini_batch_size)
+l2_factor = 0.0
+dropout_rate = 0.0
+mem_cells = [50,50,50]
 
 ###------ build and scale input and output arrays ------###
 iterations = int(1e6)
 x_dim = 1#x_list.shape[1]
 y_dim = 1
 layer_dims = [x_dim]+mem_cells+[y_dim]
-lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate, ema_factor)
+lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_factor, num_training_sets/mini_batch_size)
 
 np.random.seed(10)
 ## build and scale input and test arrays
@@ -127,15 +127,15 @@ curves.append(plots[-1].plot(pen='g')) #curve 0
 curves.append(plots[-1].plot(pen='r')) #curve 1
 win.nextRow()
 
-plots.append(win.addPlot(title='loss function',colspan=len(layer_dims)-1))
+plots.append(win.addPlot(title='loss function',colspan=int(len(layer_dims)-1)/2))
 plots[-1].setLogMode(x=False, y=True)
 plots[-1].showGrid(x=False, y=True)
 curves.append(plots[-1].plot(pen='r')) #curve 2
 curves.append(plots[-1].plot(pen='g')) #curve 3
 curves.append(plots[-1].plot(pen='y')) #curve 4
-win.nextRow()
+#win.nextRow()
 
-plots.append(win.addPlot(title='training return',colspan=len(layer_dims)-1))
+plots.append(win.addPlot(title='training return',colspan=((len(layer_dims)-1))-int(len(layer_dims)-1)/2))
 plots[-1].showGrid(x=False, y=True)
 curves.append(plots[-1].plot(pen='r')) #curve 5
 curves.append(plots[-1].plot(pen='g')) #curve 6
@@ -156,13 +156,28 @@ curves.append(plots[-1].plot(pen='y')) #curve 14
 win.nextRow()
 
 for i in range(len(layer_dims)-1):
+    plots.append(win.addPlot(title='weights layer W'+str(i+1)))
+    plots[-1].showGrid(x=False, y=True)
+    plots[-1].setLogMode(x=False, y=True)
+    curves.append(plots[-1].plot(pen='g')) #min
+    curves.append(plots[-1].plot(pen=(100,100,0))) #10%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #25%
+    curves.append(plots[-1].plot(pen=(255,255,0))) #50%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #75%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #90%
+    curves.append(plots[-1].plot(pen='g')) #max 
+win.nextRow()
+
+for i in range(len(layer_dims)-1):
     plots.append(win.addPlot(title='learning rate stats layer W'+str(i+1)))
     plots[-1].showGrid(x=False, y=True)
     plots[-1].setLogMode(x=False, y=True)
     curves.append(plots[-1].plot(pen='g')) #min
-    curves.append(plots[-1].plot(pen='y')) #median
-    curves.append(plots[-1].plot(pen='r')) #average
-    curves.append(plots[-1].plot(pen='b')) #ave + std
+    curves.append(plots[-1].plot(pen=(100,100,0))) #10%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #25%
+    curves.append(plots[-1].plot(pen=(255,255,0))) #50%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #75%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #90%
     curves.append(plots[-1].plot(pen='g')) #max 
 win.nextRow()
 
@@ -171,9 +186,11 @@ for i in range(len(layer_dims)-1):
     plots[-1].showGrid(x=False, y=True)
     plots[-1].setLogMode(x=False, y=True)
     curves.append(plots[-1].plot(pen='g')) #min
-    curves.append(plots[-1].plot(pen='y')) #median
-    curves.append(plots[-1].plot(pen='r')) #average
-    curves.append(plots[-1].plot(pen='b')) #ave + std
+    curves.append(plots[-1].plot(pen=(100,100,0))) #10%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #25%
+    curves.append(plots[-1].plot(pen=(255,255,0))) #50%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #75%
+    curves.append(plots[-1].plot(pen=(100,100,0))) #90%
     curves.append(plots[-1].plot(pen='g')) #max 
 win.nextRow()
 
@@ -185,64 +202,70 @@ curves.append(plots[-1].plot(pen='r'))
 #openfile = open(outfile, 'wb')
 loss_list = list()
 test_loss_list_ma = list()
-loss_list_ma = list()
 #learnRate = list()
 return_list = list()
 test_return_plot_list = list()
 next_test_return = list()
+weight_listW = list()
 learn_rate_listW = list()
 learn_rate_listB = list()
 predTestList = list()
 cur_iter=0
 t5=0
+#loss_list_ema=0
+train_set_list = list()
+#lf = init_learn_rate 
 def iterate():
-    global curves, plots, cur_iter, t5, predTestList
+    global curves, plots, cur_iter, t5, predTestList, train_set_list#, lf, loss_list_ema
     if random_batch:
         train_set = np.random.randint(num_training_sets) 
+#        if cur_iter%num_training_sets == 0:
+#            train_set_list = np.arange(num_training_sets)
+#            np.random.shuffle(train_set_list)
+#        train_set = train_set_list[cur_iter%num_training_sets]
     else:
         train_set = cur_iter%num_training_sets    
     
-    t1 = time.clock()
+    t1 = clock()
     print '\ncur iter: ', cur_iter, train_set
-    print 'iteration time: ', time.clock() - t5
+    print 'iteration time: ', clock() - t5
     for val in x_list_train[train_set]:
         lstm_net.x_list_add(val, dropout_rate)
     predList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
     return_list.append((strategy.trade(inputData[train_set,-train_len:],predList[-train_len:,0])[-1]-1.e5)/(ideal_return[train_set]-1.e5))
     return_list_ma=[]
-    print 'add x_val time: ', time.clock() - t1  
+    print 'add x_val time: ', clock() - t1  
     
-    t0 = time.clock()
+    t0 = clock()
     loss_list.append(lstm_net.y_list_is(y_list_train[train_set])[0]/scaleFactorAY/scaleFactorAY)
-    loss_list_ma=[]
-    print 'train time: ', time.clock() - t0
+    print 'train time: ', clock() - t0
     
-    if cur_iter>100:
-        loss_list_ma = movingaverage(loss_list,100)
-        lf = learn_factor/(np.abs((loss_list_ma[-1] - loss_list_ma[-2]))/loss_list_ma[-1])
-    else:
-        lf = init_learn_rate    
-        
+#    loss_list_ema_prev = loss_list_ema
+#    loss_list_ema*=(1.-1./num_training_sets)
+#    loss_list_ema+=loss_list[-1]/num_training_sets  
+       
     if cur_iter%mini_batch_size == 0:
-        t2 = time.clock()
+        t2 = clock()
+#        if cur_iter>num_training_sets:
+#            lf *= np.clip((learn_factor/(np.abs((loss_list_ema_prev - loss_list_ema))/loss_list_ema))/lf,0.95,1./0.95) 
         for lstm_param in lstm_net.lstm_params:
-            lstm_param.apply_diff(l2=l2_factor, lr=lf)
-        print 'apply time: ', time.clock() - t2
+            lstm_param.apply_diff(l2=l2_factor, lr=learn_factor)
+        print 'apply time: ', clock() - t2
     
     lstm_net.x_list_clear()
     
-    t4 = time.clock()
+    t4 = clock()
     curves[0].setData(rescaled_data[train_set,:,0])
     curves[1].setData(predList[:,0])
     curves[2].setData(loss_list)
     curves[5].setData(return_list)
     if cur_iter%100 == 0:
-#        loss_list_ma = movingaverage(loss_list,100)
+        loss_list_ma = movingaverage(loss_list,100)
         return_list_ma = movingaverage(return_list,100)
         curves[3].setData(np.arange(len(loss_list_ma))+100,loss_list_ma)
         curves[6].setData(np.arange(len(return_list_ma))+100,return_list_ma)
     if cur_iter%500 == 0:
-        t3 = time.clock()
+        t3 = clock()
         test_return_list = []
         test_loss_list = []
         predTestList = []
@@ -257,7 +280,7 @@ def iterate():
                 test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
             lstm_net.x_list_clear()
         test_loss_list_ma.append(np.average(test_loss_list))
-        print 'test time: ', time.clock() - t3
+        print 'test time: ', clock() - t3
         curves[4].setData(np.arange(len(test_loss_list_ma))*500,test_loss_list_ma)
         
         y_test_hist,x_test_hist = np.histogram(test_return_list, bins=np.linspace(-0.5, 1, 30))
@@ -272,22 +295,24 @@ def iterate():
             curves[9+i].setData(np.arange(len(test_return_plot_list))*500,np.array(test_return_plot_list)[:,i])
         curves[14].setData(np.arange(len(test_return_plot_list))*500,next_test_return)
     if cur_iter%10 == 0:
+        weight_listW.append(lstm_net.getWeightStatsW())
         learn_rate_listW.append(lstm_net.getLearnRateStatsW())
         learn_rate_listB.append(lstm_net.getLearnRateStatsB())
         for i in range(len(layer_dims)-1):
-            for j in range(5):
-                curves[15+5*i+j].setData(np.arange(len(learn_rate_listW))*10,np.array(learn_rate_listW)[:,i,j])
-                curves[(15+5*(len(layer_dims)-1))+5*i+j].setData(np.arange(len(learn_rate_listB))*10,np.array(learn_rate_listB)[:,i,j])   
+            for j in range(7):
+                curves[15+7*i+j].setData(np.arange(len(weight_listW))*10,np.array(weight_listW)[:,i,j])
+                curves[(15+7*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listW))*10,np.array(learn_rate_listW)[:,i,j]) 
+                curves[(15+14*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listB))*10,np.array(learn_rate_listB)[:,i,j])  
     
-    curves[15+10*(len(layer_dims)-1)].setData(ytest_list_full[cur_iter%num_test_sets])
-    curves[15+10*(len(layer_dims)-1)+1].setData(predTestList[cur_iter%num_test_sets][:,0])
-    print 'display time: ', time.clock() - t4
+    curves[15+21*(len(layer_dims)-1)].setData(ytest_list_full[cur_iter%num_test_sets])
+    curves[15+21*(len(layer_dims)-1)+1].setData(predTestList[cur_iter%num_test_sets][:,0])
+    print 'display time: ', clock() - t4
     
 #    pickle.dump(lstm_net.getParams(), openfile)
-    print 'totaltime', time.clock() - t1
+    print 'totaltime', clock() - t1
     print 'loss: ', loss_list[-1]
     cur_iter+=1
-    t5 = time.clock()
+    t5 = clock()
     
 timer = QtCore.QTimer()
 timer.timeout.connect(iterate)

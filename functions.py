@@ -80,15 +80,17 @@ def bottom_diff(pred, label):
 
 if __name__ == '__main__':
     a = np.random.rand(100)
+    b = np.random.rand(100)
+    c2 = np.random.rand(200)
     
     t0=clock()
     for i in range(1000000):
-        c1 = tanh(a)
+        c1 = np.hstack((a,b))
     print clock()-t0
 
     t0=clock()
     for i in range(1000000):
-        c2 = np.tanh(a)
+        hstack(a,b,c2)
     print clock()-t0
     
     print np.average(c1-c2)
