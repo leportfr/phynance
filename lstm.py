@@ -1,7 +1,7 @@
 import numpy as np
 from time import clock
 import sys
-from functions import sigmoid, rand_arr_w, rand_arr_b, loss_func, bottom_diff
+from functions import rand_arr_w, rand_arr_b, loss_func, bottom_diff
 from functions import outer_add, top_diff_is_func, bottom_data_is_func, tanh
 from collections import deque
 #import gOuter
@@ -41,19 +41,18 @@ class OutParam:
         self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff + 1.e-12
         self.by_diff_ema2 *= self.ema_rate
         self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff + 1.e-12
+        #update learn rates   
+        self.wy_lr *= np.clip(1.0 + lr * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2, 0.5, 2.0)
+        np.clip(self.wy_lr, 1.e-12, 0.1, out=self.wy_lr)
+        self.by_lr *= np.clip(1.0 + lr * self.by_diff * self.by_diff_ema / self.by_diff_ema2, 0.5, 2.0)
+        np.clip(self.by_lr, 1.e-12, 0.1, out=self.by_lr)
         #update emas
-        self.wy_ema_deque.appendleft(self.wy_diff_ema)
-        self.by_ema_deque.appendleft(self.by_diff_ema)
+#        self.wy_ema_deque.appendleft(self.wy_diff_ema)
+#        self.by_ema_deque.appendleft(self.by_diff_ema)
         self.wy_diff_ema *= self.ema_rate
         self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
         self.by_diff_ema *= self.ema_rate
-        self.by_diff_ema += (1. - self.ema_rate) * self.by_diff
-        #update learn rates   
-        self.wy_lr *= np.clip(1.0 + lr * self.wy_ema_deque.popleft() * self.wy_diff / self.wy_diff_ema2, 0.5, 2.0)
-        np.clip(self.wy_lr, 1.e-12, 0.1, out=self.wy_lr)
-        self.by_lr *= np.clip(1.0 + lr * self.by_ema_deque.popleft() * self.by_diff / self.by_diff_ema2, 0.5, 2.0)
-        np.clip(self.by_lr, 1.e-12, 0.1, out=self.by_lr)
-        #update weights      
+        self.by_diff_ema += (1. - self.ema_rate) * self.by_diff        #update weights      
         self.wy *= (1. - self.wy_lr*l2)
         self.wy -= self.wy_lr * self.wy_diff
         self.by -= self.by_lr * self.by_diff 
@@ -119,18 +118,18 @@ class LstmParam:
         self.w_diff_ema2 += (1. - self.ema_rate) * self.w_diff * self.w_diff + 1.e-12
         self.b_diff_ema2 *= self.ema_rate
         self.b_diff_ema2 += (1. - self.ema_rate) * self.b_diff * self.b_diff + 1.e-12
+#        update learn rates        
+        self.w_lr *= np.clip(1.0 + lr * self.w_diff * self.w_diff_ema / self.w_diff_ema2, 0.5, 2.0)
+        np.clip(self.w_lr, 1.e-12, 0.1, out=self.w_lr)
+        self.b_lr *= np.clip(1.0 + lr * self.b_diff * self.b_diff_ema / self.b_diff_ema2, 0.5, 2.0)
+        np.clip(self.b_lr, 1.e-12, 0.1, out=self.b_lr)
 #        update emas
-        self.w_ema_deque.appendleft(self.w_diff_ema)
-        self.b_ema_deque.appendleft(self.b_diff_ema)
+#        self.w_ema_deque.appendleft(self.w_diff_ema)
+#        self.b_ema_deque.appendleft(self.b_diff_ema)
         self.w_diff_ema *= self.ema_rate
         self.w_diff_ema += (1. - self.ema_rate) * self.w_diff
         self.b_diff_ema *= self.ema_rate
         self.b_diff_ema += (1. - self.ema_rate) * self.b_diff
-#        update learn rates        
-        self.w_lr *= np.clip(1.0 + lr * self.w_ema_deque.popleft() * self.w_diff / self.w_diff_ema2, 0.5, 2.0)
-        np.clip(self.w_lr, 1.e-12, 0.1, out=self.w_lr)
-        self.b_lr *= np.clip(1.0 + lr * self.b_ema_deque.popleft() * self.b_diff / self.b_diff_ema2, 0.5, 2.0)
-        np.clip(self.b_lr, 1.e-12, 0.1, out=self.b_lr)
         #update weights
         self.w *= (1. - self.w_lr*l2) 
         self.w -= self.w_lr * self.w_diff
@@ -157,7 +156,7 @@ class LstmParam:
 class OutState:
     def __init__(self, out_dim, in_dim):
         self.y = np.zeros(out_dim)
-        self.bottom_diff_h = np.zeros_like(in_dim)
+        self.bottom_diff_h = np.zeros(in_dim)
         
 class LstmState:
     def __init__(self, out_dim, in_dim):
@@ -166,7 +165,6 @@ class LstmState:
         self.f = np.zeros(out_dim)
         self.o = np.zeros(out_dim)
         self.s = np.zeros(out_dim)
-        self.tanhs = np.zeros(out_dim)
         self.h = np.zeros(out_dim)
         self.bottom_diff_h = np.zeros_like(self.h)
         self.bottom_diff_s = np.zeros_like(self.s)
@@ -192,10 +190,9 @@ class OutNode:
         dy_input = (1. - self.state.y * self.state.y) * top_diff_y
 #        dy_input = (1. - self.state.y) * self.state.y * top_diff_y
 
-        outer_add(dy_input, self.h, self.param.wy_diff)
-        self.param.by_diff += dy_input
+        outer_add(dy_input, self.h, self.param.wy_diff, self.param.by_diff)
         
-        self.state.bottom_diff_h = np.dot(self.param.wy.T, dy_input)     
+        np.dot(self.param.wy.T, dy_input, out=self.state.bottom_diff_h)     
     
 class LstmNode:
     def __init__(self, lstm_param, lstm_state):#, gOuter):
@@ -222,34 +219,29 @@ class LstmNode:
 #        print '1', clock()-t0
         
 #        t0=clock()
-        (self.state.g, self.state.i, self.state.f, self.state.o, self.state.s, 
-         self.state.tanhs, self.state.h) = bottom_data_is_func(self.inptc, inpt*dropout_list, 
-        self.param.out_dim, self.param.w, self.param.b, h_prev, s_prev)
+        bottom_data_is_func(self.inptc, inpt*dropout_list, self.param.out_dim, 
+                            self.param.w, self.param.b, h_prev, s_prev, self.state.g, 
+                            self.state.i, self.state.f, self.state.o, self.state.s, 
+                            self.state.h)
 #        print '2', clock()-t0
     
     def top_diff_is(self, top_diff_h, top_diff_s):
         
 #        t0 = clock()       
-        dsf = top_diff_is_func(self.param.d_input, self.param.out_dim, self.state.g, 
-                         self.state.f, self.state.i, self.state.o, self.s_prev,
-                         self.state.tanhs, top_diff_h, top_diff_s)
+        top_diff_is_func(self.param.d_input, self.param.out_dim, self.state.g, 
+                         self.state.f, self.state.i, self.state.o, self.s_prev, 
+                         top_diff_h, top_diff_s, self.state.bottom_diff_s, self.state.s)
 #        print 'top_diff_is 0', clock() - t0
         
 #        t0 = clock()
-        outer_add(self.param.d_input, self.inptc, self.param.w_diff)
+        outer_add(self.param.d_input, self.inptc, self.param.w_diff, self.param.b_diff)
 #        print 'top_diff_is 1', clock() - t0
-        
-#        t0 = clock()
-#        self.param.w_diff += self.param.w_tdiff
-        self.param.b_diff += self.param.d_input      
-#        print 'top_diff_is 2', clock() - t0
         
 #        t0 = clock()    
         dinptc = np.dot(self.param.w.T, self.param.d_input)
 #        print 'top_diff_is 3', clock() - t0
 
 #        t0 = clock() 
-        self.state.bottom_diff_s = dsf#ds * self.state.f
         self.state.bottom_diff_x = dinptc[:self.param.in_dim]
         self.state.bottom_diff_h = dinptc[self.param.in_dim:]
 #        print 'top_diff_is 4', clock() - t0

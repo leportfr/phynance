@@ -32,19 +32,19 @@ datasize = df.shape[0]
 history_len = 365
 train_len = 100
 
-num_training_sets = 100
+num_training_sets = 500
 mini_batch_size = 10
 assert(num_training_sets%mini_batch_size == 0)
 random_batch = 1
 
 num_test_sets = 100
 
-test_train_cutoff = 2500
-test_limit = datasize
+test_train_cutoff = 1000
+test_limit = 2500
 
 ### set RNN parameters ###
 init_learn_rate = 3.e-3
-learn_factor = 0.1
+learn_factor = 1.0
 ema_factor = 0.8#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
 dropout_rate = 0.0
@@ -113,7 +113,7 @@ for j,sublist in enumerate(buySellList):
 ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:])[-1] for i in range(num_test_sets)]
 
 ###------ build visualization window and execute training ------###
-wintitle='rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+wintitle='rnlogqotin1sclNEWSTRAT,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
 win.resize(1575,825)

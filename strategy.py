@@ -97,7 +97,7 @@ def ideal_strategy(stock_price, sdol=sdolinit, sshares=0, bidask=bidaskinit, com
     
     return (dollars,buySellList)
     
-def ideal_strategy(stock_price, sdol=sdolinit, bidask=bidaskinit, com=cominit):
+def ideal_strategyOrg(stock_price, sdol=sdolinit, bidask=bidaskinit, com=cominit):
     shifts=np.diff(np.array(np.diff(stock_price[:])>0,dtype=int))
     enumshifts=np.array(list(enumerate(shifts)))
     changePoints=enumshifts[enumshifts[:,1]!=0]
