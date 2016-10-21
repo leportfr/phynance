@@ -3,6 +3,8 @@ from time import clock
 import numba
 from copy import copy
 import math
+from math import tanh
+from scipy.special import expit
 np.random.seed(0)
 
 @numba.jit(nopython=True)
@@ -13,19 +15,16 @@ def dot_add(a, b, c):
             
 @numba.jit(nopython=True)
 def sigmoid(x):
-    return 1. / (1. + math.exp(-x))
+    if x>100.0:
+        return 1.0
+    elif x<-100.0:
+        return 0.0
+    else:
+        return 1./(1. + math.exp(-x))
     
 @numba.jit(nopython=True)
 def sigprime(x):
     return (1-x)*x
-    
-@numba.jit(nopython=True)
-def tanh(x):
-    return (np.exp(2.*x) - 1)/(np.exp(2.*x) + 1)
-    
-@numba.jit(nopython=True)
-def tanhS(x):
-    return (math.exp(2.*x) - 1)/(math.exp(2.*x) + 1)
     
 @numba.jit(nopython=True)
 def hstack(a,b,c):
@@ -41,22 +40,22 @@ def bottom_data_is_func(inptc, dropout_list, out_dim, w, b, h_prev, s_prev, g, i
     
     dotprod = np.dot(w, inptc)
     for x in range(out_dim):
-        g[x] = tanhS(dotprod[x]+b[x])
+        g[x] = tanh(dotprod[x]+b[x])
         i[x] = sigmoid(dotprod[x+out_dim]+b[x+out_dim])
         f[x] = sigmoid(dotprod[x+2*out_dim]+b[x+2*out_dim])
         o[x] = sigmoid(dotprod[x+3*out_dim]+b[x+3*out_dim]) 
         
         s[x] = g[x] * i[x] + s_prev[x] * f[x]
-        h[x] = tanhS(s[x]) * o[x]
+        h[x] = tanh(s[x]) * o[x]
 
 @numba.jit(nopython=True)
 def top_diff_is_func(inpt,out_dim, g, f, i, o, s_prev, tdh, tds, dsf, s):
     for x in range(out_dim):
-        ds=(o[x] * (1. - tanhS(s[x])**2) * tdh[x] + tds[x])
+        ds=(o[x] * (1. - tanh(s[x])**2) * tdh[x] + tds[x])
         inpt[x] = (1. - g[x]**2) * (i[x] * ds)
         inpt[x+out_dim] = sigprime(i[x]) * (g[x] * ds) 
         inpt[x+2*out_dim] = sigprime(f[x]) * (s_prev[x] * ds) 
-        inpt[x+3*out_dim] = sigprime(o[x]) * (tanhS(s[x]) * tdh[x]) 
+        inpt[x+3*out_dim] = sigprime(o[x]) * (tanh(s[x]) * tdh[x]) 
         dsf[x] = ds * f[x]
 #    ds = o * (1. - tanhs * tanhs) * tdh + tds    
 #    
@@ -89,22 +88,32 @@ def bottom_diff(pred, label):
 #    return pred - label        
 
 if __name__ == '__main__':
-
-    a = np.random.rand(100,200)
-    b = np.random.rand(200)
-    c1 = np.zeros(100)
-    c2 = np.random.rand(100)
-    c3 = copy(c2)
-    
     t0 = clock()
-    for i in range(100000):
-        np.dot(a,b,out=c1)
-        c2+=c1
+    for i in range(1000000):
+        a=sigmoid(-1000)
     print clock() - t0
     
     t0 = clock()
-    for i in range(100000):
-        dot_add(a,b,c3)
+    for i in range(1000000):
+        b=expit(-1000)
     print clock() - t0
     
-    print np.average(c3-c2)
+    print a-b
+#    a = np.random.rand(100,200)
+#    b = np.random.rand(200)
+#    c1 = np.zeros(100)
+#    c2 = np.random.rand(100)
+#    c3 = copy(c2)
+#    
+#    t0 = clock()
+#    for i in range(100000):
+#        np.dot(a,b,out=c1)
+#        c2+=c1
+#    print clock() - t0
+#    
+#    t0 = clock()
+#    for i in range(100000):
+#        dot_add(a,b,c3)
+#    print clock() - t0
+#    
+#    print np.average(c3-c2)
