@@ -4,14 +4,13 @@ import numba
 from copy import copy
 import math
 from math import tanh
-from scipy.special import expit
 np.random.seed(0)
 
-@numba.jit(nopython=True)
-def dot_add(a, b, c):
-    for j,val2 in enumerate(b):
-        for i in range(len(a)):
-            c[i]+=a[i,j]*val2
+#@numba.jit(nopython=True)
+#def dot_add(a, b, c):
+#    for j,val2 in enumerate(b):
+#        for i,val in enumerate(a.T[j]):
+#            c[i]+=val*val2
             
 @numba.jit(nopython=True)
 def sigmoid(x):
@@ -57,14 +56,6 @@ def top_diff_is_func(inpt,out_dim, g, f, i, o, s_prev, tdh, tds, dsf, s):
         inpt[x+2*out_dim] = sigprime(f[x]) * (s_prev[x] * ds) 
         inpt[x+3*out_dim] = sigprime(o[x]) * (tanh(s[x]) * tdh[x]) 
         dsf[x] = ds * f[x]
-#    ds = o * (1. - tanhs * tanhs) * tdh + tds    
-#    
-#    inpt[:out_dim] = (1. - g * g) * (i * ds)
-#    inpt[out_dim:2*out_dim] = (1. - i) * i * (g * ds) 
-#    inpt[2*out_dim:3*out_dim] = (1. - f) * f * (s_prev * ds) 
-#    inpt[3*out_dim:] = (1. - o) * o * (tanhs * tdh) 
-    
-#    return ds * f
 
 @numba.jit(nopython=True)
 def outer_add(a, b, c, d):
@@ -84,36 +75,24 @@ def loss_func(pred, label):
 #    return -(label*np.log(pred) + (1-label)*np.log(1-pred))
 
 def bottom_diff(pred, label):
-    return 2 * (pred - label)
-#    return pred - label        
+#    return 2 * (pred - label)
+    return pred - label        
 
 if __name__ == '__main__':
+    a = np.random.rand(100,200)
+    b = np.random.rand(200)
+    c1 = np.zeros(100)
+    c2 = np.random.rand(100)
+    c3 = copy(c2)
+    
     t0 = clock()
-    for i in range(1000000):
-        a=sigmoid(-1000)
+    for i in range(100000):
+        c2+=np.dot(a,b)
     print clock() - t0
     
     t0 = clock()
-    for i in range(1000000):
-        b=expit(-1000)
+    for i in range(100000):
+        dot_add(a,b,c3)
     print clock() - t0
     
-    print a-b
-#    a = np.random.rand(100,200)
-#    b = np.random.rand(200)
-#    c1 = np.zeros(100)
-#    c2 = np.random.rand(100)
-#    c3 = copy(c2)
-#    
-#    t0 = clock()
-#    for i in range(100000):
-#        np.dot(a,b,out=c1)
-#        c2+=c1
-#    print clock() - t0
-#    
-#    t0 = clock()
-#    for i in range(100000):
-#        dot_add(a,b,c3)
-#    print clock() - t0
-#    
-#    print np.average(c3-c2)
+    print np.average(c3-c2)
