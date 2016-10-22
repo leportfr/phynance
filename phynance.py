@@ -32,12 +32,12 @@ datasize = df.shape[0]
 history_len = 365
 train_len = 100
 
-num_training_sets = 100
+num_training_sets = 10
 mini_batch_size = 10
 assert(num_training_sets%mini_batch_size == 0)
 random_batch = 1
 
-num_test_sets = 100
+num_test_sets = 10
 
 test_train_cutoff = 1000
 test_limit = 2500
@@ -47,7 +47,7 @@ init_learn_rate = 1.e-3
 learn_factor = 0.1
 ema_factor = 0.8#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
-dropout_rate = 0.1
+dropout_rate = 0.0
 mem_cells = [50,50,50]
 
 ###------ build and scale input and output arrays ------###
@@ -55,7 +55,7 @@ iterations = int(1e6)
 x_dim = 1#x_list.shape[1]
 y_dim = 1
 layer_dims = [x_dim]+mem_cells+[y_dim]
-lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_factor**(float(mini_batch_size)/float(num_training_sets)), num_training_sets/mini_batch_size)
+lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_factor**(float(mini_batch_size)/float(num_training_sets)), num_training_sets/mini_batch_size, mini_batch_size)
 
 np.random.seed(10)
 ## build and scale input and test arrays
@@ -251,36 +251,38 @@ learn_rate_listB = list()
 predTestList = list()
 cur_iter=0
 t5=0
-train_set_list = np.arange(num_training_sets) 
+train_set_list = np.arange(num_training_sets).reshape(mini_batch_size,num_training_sets/mini_batch_size)
 def iterate():
     global curves, plots, cur_iter, t5, predTestList, train_set_list#, lf, loss_list_ema
     if random_batch:
 #        train_set = np.random.randint(num_training_sets) 
-        if cur_iter%num_training_sets == 0:
+        if cur_iter%num_training_sets/mini_batch_size == 0:
+            train_set_list = np.arange(num_training_sets)
             np.random.shuffle(train_set_list)
-        train_set = train_set_list[cur_iter%num_training_sets]
+            train_set_list=train_set_list.reshape(num_training_sets/mini_batch_size,mini_batch_size)
+        train_set = train_set_list[cur_iter%(num_training_sets/mini_batch_size)]
     else:
-        train_set = cur_iter%num_training_sets    
+        train_set = cur_iter%(num_training_sets/mini_batch_size)    
     
     t1 = clock()
     print '\ncur iter: ', cur_iter, train_set
     print 'iteration time: ', clock() - t5
-    for val in x_list_train[train_set]:
+    for val in np.transpose(x_list_train[train_set],(1,0,2)):
         lstm_net.x_list_add(val, dropout_rate)
     predList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
-    return_list.append((strategy.trade(inputData[train_set,-train_len:],predList[-train_len:,0])[-1]-1.e5)/(ideal_return[train_set]-1.e5))
+    [return_list.append((strategy.trade(inputData[ts,-train_len:],predList[-train_len:,ts,0])[-1]-1.e5)/(ideal_return[ts]-1.e5)) for ts in train_set]
     return_list_ma=[]
     print 'add x_val time: ', clock() - t1  
     
     t0 = clock()
-    loss_list.append(lstm_net.y_list_is(y_list_train[train_set])[0]/scaleFactorAY/scaleFactorAY)
+    loss_list.append(lstm_net.y_list_is(np.transpose(y_list_train[train_set],(1,0,2)))[0]/scaleFactorAY/scaleFactorAY)
     print 'train time: ', clock() - t0
     
 #    loss_list_ema_prev = loss_list_ema
 #    loss_list_ema*=(1.-1./num_training_sets)
 #    loss_list_ema+=loss_list[-1]/num_training_sets  
        
-    if cur_iter%mini_batch_size == 0:
+    if cur_iter%1 == 0:
         t2 = clock()
         grad_listW.append(lstm_net.getGradStatsW())
         grad_listB.append(lstm_net.getGradStatsB())
@@ -297,8 +299,9 @@ def iterate():
     lstm_net.x_list_clear()
     
     t4 = clock()
-    curves[0].setData(rescaled_data[train_set,:,0])
-    curves[1].setData(predList[:,0])
+    print rescaled_data.shape
+    curves[0].setData(rescaled_data[train_set[0],:,0])
+    curves[1].setData(predList[:,0,0])
     curves[2].setData(loss_list)
     curves[5].setData(return_list)
     if cur_iter%100 == 0:
@@ -313,8 +316,8 @@ def iterate():
         predTestList = []
         for test_set,test_setX in enumerate(x_list_test):
             for val in test_setX:
-                lstm_net.x_list_add(val, 0.0)
-            predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()))
+                lstm_net.x_list_add(np.array([val]*mini_batch_size), 0.0)
+            predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()[:,0]))
             test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,0],ytest_list_full[test_set,-train_len:])))
             if test_set==0:
                 next_test_return.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
@@ -336,15 +339,15 @@ def iterate():
         for i in range(5):
             curves[9+i].setData(np.arange(len(test_return_plot_list))*500,np.array(test_return_plot_list)[:,i])
         curves[14].setData(np.arange(len(test_return_plot_list))*500,next_test_return)
-    if cur_iter%mini_batch_size == 0:
+    if cur_iter%1 == 0:
         for i in range(len(layer_dims)-1):
             for j in range(7):
-                curves[15+7*i+j].setData(np.arange(len(weight_listW))*mini_batch_size,np.array(weight_listW)[:,i,j])
-                curves[(15+7*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(weight_listB))*mini_batch_size,np.array(weight_listB)[:,i,j]) 
-                curves[(15+14*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(grad_listW))*mini_batch_size,np.array(grad_listW)[:,i,j]) 
-                curves[(15+21*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(grad_listB))*mini_batch_size,np.array(grad_listB)[:,i,j]) 
-                curves[(15+28*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listW))*mini_batch_size,np.array(learn_rate_listW)[:,i,j]) 
-                curves[(15+35*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listB))*mini_batch_size,np.array(learn_rate_listB)[:,i,j])  
+                curves[15+7*i+j].setData(np.arange(len(weight_listW)),np.array(weight_listW)[:,i,j])
+                curves[(15+7*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(weight_listB)),np.array(weight_listB)[:,i,j]) 
+                curves[(15+14*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(grad_listW)),np.array(grad_listW)[:,i,j]) 
+                curves[(15+21*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(grad_listB)),np.array(grad_listB)[:,i,j]) 
+                curves[(15+28*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listW)),np.array(learn_rate_listW)[:,i,j]) 
+                curves[(15+35*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listB)),np.array(learn_rate_listB)[:,i,j])  
     
     curves[15+42*(len(layer_dims)-1)].setData(ytest_list_full[cur_iter%num_test_sets])
     curves[15+42*(len(layer_dims)-1)+1].setData(predTestList[cur_iter%num_test_sets][:,0])

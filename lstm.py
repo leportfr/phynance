@@ -13,9 +13,10 @@ LRMAX = 0.1
 LRMIN = 1.e-12
     
 class OutParam:
-    def __init__(self, out_dim, in_dim, learn_rate, ema_rate, trainMBratio):
+    def __init__(self, out_dim, in_dim, mb_size, learn_rate, ema_rate, trainMBratio):
         self.out_dim = out_dim
         self.in_dim = in_dim
+        self.mb_size = mb_size
         self.learn_rate = learn_rate
         self.ema_rate = ema_rate
         # weight matrices        
@@ -23,8 +24,8 @@ class OutParam:
         # bias terms
         self.by = np.zeros(out_dim)#/10.0
         # diffs (derivative of loss function w.r.t. all parameters)
-        self.wy_diff = np.zeros((out_dim, in_dim))
-        self.by_diff = np.zeros(out_dim)
+        self.wy_diff = np.zeros((mb_size, out_dim, in_dim))
+        self.by_diff = np.zeros((mb_size, out_dim))
         # emas of diffs
         self.wy_diff_ema = np.zeros((out_dim, in_dim))
         self.by_diff_ema = np.zeros(out_dim)
@@ -39,8 +40,11 @@ class OutParam:
         self.by_lr = np.zeros(out_dim) + learn_rate
         
     def apply_diff(self, l2, lr):
-        self.wy_diff_deque.appendleft(copy(self.wy_diff))
-        self.by_diff_deque.appendleft(copy(self.by_diff)) 
+        wy_diff_sum = np.sum(self.wy_diff, axis=0)
+        by_diff_sum = np.sum(self.by_diff, axis=0)          
+        
+        self.wy_diff_deque.appendleft(copy(wy_diff_sum))
+        self.by_diff_deque.appendleft(copy(by_diff_sum)) 
         wy_diff_ma = np.average(self.wy_diff_deque, axis=0)
         by_diff_ma = np.average(self.by_diff_deque, axis=0)
         self.wy_diff_deque.pop()
@@ -62,11 +66,11 @@ class OutParam:
         self.by_diff_ema += (1. - self.ema_rate) * by_diff_ma
         #update weights      
         self.wy *= (1. - self.wy_lr*l2)
-        self.wy -= self.wy_lr * self.wy_diff
-        self.by -= self.by_lr * self.by_diff 
+        self.wy -= self.wy_lr * wy_diff_sum
+        self.by -= self.by_lr * by_diff_sum 
         #reset diffs
-        self.wy_diff = np.zeros_like(self.wy) 
-        self.by_diff = np.zeros_like(self.by)
+        self.wy_diff = np.zeros_like(self.wy_diff) 
+        self.by_diff = np.zeros_like(self.by_diff)
         
     def getParams(self):
         return (self.wy, self.by)
@@ -92,9 +96,10 @@ class OutParam:
 
         
 class LstmParam:
-    def __init__(self, out_dim, in_dim, learn_rate, ema_rate, trainMBratio):
+    def __init__(self, out_dim, in_dim, mb_size, learn_rate, ema_rate, trainMBratio):
         self.out_dim = out_dim
         self.in_dim = in_dim
+        self.mb_size = mb_size
         self.learn_rate = learn_rate
         self.ema_rate = ema_rate
         # weight matrices
@@ -106,10 +111,10 @@ class LstmParam:
         bo = rand_arr_b(out_dim) 
         self.b = np.concatenate([bg,bi,bf,bo])#*10.0
         # diffs (derivative of loss function w.r.t. all parameters)
-        self.w_diff = np.zeros((4*out_dim, in_dim+out_dim))
-        self.b_diff = np.zeros(4*out_dim) 
+        self.w_diff = np.zeros((mb_size, 4*out_dim, in_dim+out_dim))
+        self.b_diff = np.zeros((mb_size, 4*out_dim)) 
         # temp_diffs
-        self.d_input = np.zeros(4*out_dim)
+        self.d_input = np.zeros((mb_size, 4*out_dim))
         # emas of diffs
         self.w_diff_ema = np.zeros((4*out_dim, in_dim+out_dim)) 
         self.b_diff_ema = np.zeros(4*out_dim) 
@@ -124,8 +129,11 @@ class LstmParam:
         self.b_lr = np.zeros(4*out_dim) + learn_rate * 50.0
 
     def apply_diff(self, l2, lr):
-        self.w_diff_deque.appendleft(copy(self.w_diff))
-        self.b_diff_deque.appendleft(copy(self.b_diff)) 
+        w_diff_sum = np.sum(self.w_diff, axis=0)
+        b_diff_sum = np.sum(self.b_diff, axis=0)            
+        
+        self.w_diff_deque.appendleft(copy(w_diff_sum))
+        self.b_diff_deque.appendleft(copy(b_diff_sum)) 
         w_diff_ma = np.average(self.w_diff_deque, axis=0)
         b_diff_ma = np.average(self.b_diff_deque, axis=0)
         self.w_diff_deque.pop()
@@ -147,11 +155,11 @@ class LstmParam:
         self.b_diff_ema += (1. - self.ema_rate) * b_diff_ma
         #update weights
         self.w *= (1. - self.w_lr*l2) 
-        self.w -= self.w_lr * self.w_diff
-        self.b -= self.b_lr * self.b_diff
+        self.w -= self.w_lr * w_diff_sum
+        self.b -= self.b_lr * b_diff_sum
         #reset diffs
-        self.w_diff = np.zeros_like(self.w)
-        self.b_diff = np.zeros_like(self.b)
+        self.w_diff = np.zeros_like(self.w_diff)
+        self.b_diff = np.zeros_like(self.b_diff)
         
     def getParams(self):
         return (self.wg, self.wi, self.wf, self.wo, self.bg, self.bi, self.bf, self.bo)
@@ -176,21 +184,21 @@ class LstmParam:
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
         
 class OutState:
-    def __init__(self, out_dim, in_dim):
-        self.y = np.zeros(out_dim)
-        self.bottom_diff_h = np.zeros(in_dim)
+    def __init__(self, out_dim, in_dim, mb_size):
+        self.y = np.zeros((mb_size, out_dim))
+        self.bottom_diff_h = np.zeros((mb_size, in_dim))
         
 class LstmState:
-    def __init__(self, out_dim, in_dim):
-        self.g = np.zeros(out_dim)
-        self.i = np.zeros(out_dim)
-        self.f = np.zeros(out_dim)
-        self.o = np.zeros(out_dim)
-        self.s = np.zeros(out_dim)
-        self.h = np.zeros(out_dim)
+    def __init__(self, out_dim, in_dim, mb_size):
+        self.g = np.zeros((mb_size, out_dim))
+        self.i = np.zeros((mb_size, out_dim))
+        self.f = np.zeros((mb_size, out_dim))
+        self.o = np.zeros((mb_size, out_dim))
+        self.s = np.zeros((mb_size, out_dim))
+        self.h = np.zeros((mb_size, out_dim))
         self.bottom_diff_h = np.zeros_like(self.h)
         self.bottom_diff_s = np.zeros_like(self.s)
-        self.bottom_diff_x = np.zeros(in_dim)
+        self.bottom_diff_x = np.zeros((mb_size, in_dim))
         
 class OutNode:
     def __init__(self, out_param, out_state):
@@ -199,13 +207,13 @@ class OutNode:
         self.h = None
         
     def bottom_data_is(self, h, dropout_rate):
-        dropout_list=[0]*int(len(h)*dropout_rate)
-        dropout_list+=[1]*(len(h)-len(dropout_list))
+        dropout_list=[0]*int(self.param.in_dim*dropout_rate)
+        dropout_list+=[1]*(self.param.in_dim-len(dropout_list))
         np.random.shuffle(dropout_list)
         self.h = h*dropout_list
         
 #        self.state.y = np.tanh(np.dot(self.param.wy, self.h) + self.param.by)
-        self.state.y = expit(np.dot(self.param.wy, self.h) + self.param.by)
+        self.state.y = expit(np.dot(self.param.wy, self.h.T).T + self.param.by)
         
     def top_diff_is(self, top_diff_y):
         dy_input = top_diff_y
@@ -214,17 +222,15 @@ class OutNode:
 
         outer_add(dy_input, self.h, self.param.wy_diff, self.param.by_diff)
         
-        np.dot(self.param.wy.T, dy_input, out=self.state.bottom_diff_h)     
+        self.state.bottom_diff_h = np.dot(self.param.wy.T, dy_input.T).T  
     
 class LstmNode:
     def __init__(self, lstm_param, lstm_state):#, gOuter):
         # store reference to parameters and to activations
         self.state = lstm_state
         self.param = lstm_param
-        # non-recurrent input to node
-        self.inpt = None
         # non-recurrent input concatenated with recurrent input
-        self.inptc = np.zeros(self.param.in_dim + self.param.out_dim)
+        self.inptc = np.zeros((self.param.mb_size, self.param.in_dim + self.param.out_dim))
         
 #        self.gOuter = gOuter
 #        self.b_gpu = None
@@ -232,14 +238,13 @@ class LstmNode:
         
     def bottom_data_is(self, inpt, s_prev, h_prev, dropout_rate):
         # save data for use in backprop
-        self.s_prev = s_prev
+        self.s_prev = s_prev       
         
 #        t0=clock()
-        dropout_list=[0]*int(len(inpt)*dropout_rate)
-        dropout_list+=[1]*(len(inpt)-len(dropout_list))
+        dropout_list=[0]*int(self.param.in_dim*dropout_rate)
+        dropout_list+=[1]*(self.param.in_dim-len(dropout_list))
         np.random.shuffle(dropout_list)
 #        print '1', clock()-t0
-        
 #        t0=clock()
         bottom_data_is_func(self.inptc, inpt*dropout_list, self.param.out_dim, 
                             self.param.w, self.param.b, h_prev, s_prev, self.state.g, 
@@ -260,23 +265,23 @@ class LstmNode:
 #        print 'top_diff_is 1', clock() - t0
         
 #        t0 = clock()    
-        dinptc = np.dot(self.param.w.T, self.param.d_input)
+        dinptc = np.dot(self.param.w.T, self.param.d_input.T).T
 #        print 'top_diff_is 3', clock() - t0
 
 #        t0 = clock() 
-        self.state.bottom_diff_x = dinptc[:self.param.in_dim]
-        self.state.bottom_diff_h = dinptc[self.param.in_dim:]
+        self.state.bottom_diff_x = dinptc[:,:self.param.in_dim]
+        self.state.bottom_diff_h = dinptc[:,self.param.in_dim:]
 #        print 'top_diff_is 4', clock() - t0
 
 class LstmNetwork():
-    def __init__(self, layer_dims, learn_rate, ema_rate, trainMBratio):
+    def __init__(self, layer_dims, learn_rate, ema_rate, trainMBratio, mb_size):
         # layer_dims represents dimensions of all layers, where [0] is x_dim and [-1] is y_dim
         self.num_layers = len(layer_dims)
         self.lstm_params = list()
-        self.lstm_params.append(LstmParam(layer_dims[1], layer_dims[0], learn_rate, ema_rate, trainMBratio))
+        self.lstm_params.append(LstmParam(layer_dims[1], layer_dims[0], mb_size, learn_rate, ema_rate, trainMBratio))
         for lyr in range(self.num_layers-3):
-            self.lstm_params.append(LstmParam(layer_dims[lyr+2], layer_dims[lyr+1], learn_rate, ema_rate, trainMBratio))
-        self.lstm_params.append(OutParam(layer_dims[-1], layer_dims[-2], learn_rate, ema_rate, trainMBratio))
+            self.lstm_params.append(LstmParam(layer_dims[lyr+2], layer_dims[lyr+1], mb_size, learn_rate, ema_rate, trainMBratio))
+        self.lstm_params.append(OutParam(layer_dims[-1], layer_dims[-2], mb_size, learn_rate, ema_rate, trainMBratio))
         self.lstm_node_list = []
         self.out_node_list = []
         # input sequence
@@ -299,7 +304,7 @@ class LstmNetwork():
         idy = len(y_list) - 1
         idx = len(self.x_list) - 1
         # calculate loss from out_node and backpropagate
-        loss = loss_func(self.out_node_list[idx].state.y, y_list[idy])
+        loss = np.average(loss_func(self.out_node_list[idx].state.y, y_list[idy]),axis=0)
         diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idy]) 
 #        print diff_y
         self.out_node_list[idx].top_diff_is(diff_y)   
@@ -318,7 +323,7 @@ class LstmNetwork():
         ### we also propagate error along constant error carousel using diff_s
         while idx >= 0:
             if idy >= 0:
-                loss += loss_func(self.out_node_list[idx].state.y, y_list[idy])
+                loss += np.average(loss_func(self.out_node_list[idx].state.y, y_list[idy]),axis=0)
                 diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idy])  
                 self.out_node_list[idx].top_diff_is(diff_y)
                 diff_h = self.out_node_list[idx].state.bottom_diff_h
@@ -347,8 +352,8 @@ class LstmNetwork():
             lstm_states=list()
             # need to add new lstm node, create new state mem
             for lyr in range(self.num_layers-2):
-                lstm_states.append(LstmState(self.lstm_params[lyr].out_dim, self.lstm_params[lyr].in_dim))
-            lstm_states.append(OutState(self.lstm_params[-1].out_dim, self.lstm_params[-1].in_dim))
+                lstm_states.append(LstmState(self.lstm_params[lyr].out_dim, self.lstm_params[lyr].in_dim, self.lstm_params[lyr].mb_size))
+            lstm_states.append(OutState(self.lstm_params[-1].out_dim, self.lstm_params[-1].in_dim, self.lstm_params[-1].mb_size))
             lstm_nodes=list()
             for lyr in range(self.num_layers-2):
                 lstm_nodes.append(LstmNode(self.lstm_params[lyr], lstm_states[lyr]))#, self.gOuter1 if lyr==0 else self.gOuter2))

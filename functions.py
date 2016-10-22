@@ -26,43 +26,47 @@ def sigprime(x):
     return (1-x)*x
     
 @numba.jit(nopython=True)
-def hstack(a,b,c):
-    for i,val in enumerate(a):
-        c[i] = val
-    l=len(a)
-    for i,val in enumerate(b):
-        c[i+l] = val
+def hstack(a, b, c):
+    for j in range(len(a)):
+        for i,val in enumerate(a[j]):
+            c[j,i] = val
+        l=len(a[j])
+        for i,val in enumerate(b[j]):
+            c[j,i+l] = val
 
 @numba.jit(nopython=True)
 def bottom_data_is_func(inptc, dropout_list, out_dim, w, b, h_prev, s_prev, g, i, f, o, s, h):
     hstack(dropout_list,  h_prev, inptc)
     
-    dotprod = np.dot(w, inptc)
-    for x in range(out_dim):
-        g[x] = tanh(dotprod[x]+b[x])
-        i[x] = sigmoid(dotprod[x+out_dim]+b[x+out_dim])
-        f[x] = sigmoid(dotprod[x+2*out_dim]+b[x+2*out_dim])
-        o[x] = sigmoid(dotprod[x+3*out_dim]+b[x+3*out_dim]) 
-        
-        s[x] = g[x] * i[x] + s_prev[x] * f[x]
-        h[x] = tanh(s[x]) * o[x]
+    dotprod = np.dot(w, inptc.T).T
+    for y in range(len(inptc)):
+        for x in range(out_dim):
+            g[y,x] = tanh(dotprod[y,x]+b[x])
+            i[y,x] = sigmoid(dotprod[y,x+out_dim]+b[x+out_dim])
+            f[y,x] = sigmoid(dotprod[y,x+2*out_dim]+b[x+2*out_dim])
+            o[y,x] = sigmoid(dotprod[y,x+3*out_dim]+b[x+3*out_dim]) 
+            
+            s[y,x] = g[y,x] * i[y,x] + s_prev[y,x] * f[y,x]
+            h[y,x] = tanh(s[y,x]) * o[y,x]
 
 @numba.jit(nopython=True)
 def top_diff_is_func(inpt,out_dim, g, f, i, o, s_prev, tdh, tds, dsf, s):
-    for x in range(out_dim):
-        ds=(o[x] * (1. - tanh(s[x])**2) * tdh[x] + tds[x])
-        inpt[x] = (1. - g[x]**2) * (i[x] * ds)
-        inpt[x+out_dim] = sigprime(i[x]) * (g[x] * ds) 
-        inpt[x+2*out_dim] = sigprime(f[x]) * (s_prev[x] * ds) 
-        inpt[x+3*out_dim] = sigprime(o[x]) * (tanh(s[x]) * tdh[x]) 
-        dsf[x] = ds * f[x]
+    for y in range(len(inpt)):
+        for x in range(out_dim):
+            ds=(o[y,x] * (1. - tanh(s[y,x])**2) * tdh[y,x] + tds[y,x])
+            inpt[y,x] = (1. - g[y,x]**2) * (i[y,x] * ds)
+            inpt[y,x+out_dim] = sigprime(i[y,x]) * (g[y,x] * ds) 
+            inpt[y,x+2*out_dim] = sigprime(f[y,x]) * (s_prev[y,x] * ds) 
+            inpt[y,x+3*out_dim] = sigprime(o[y,x]) * (tanh(s[y,x]) * tdh[y,x]) 
+            dsf[y,x] = ds * f[y,x]
 
 @numba.jit(nopython=True)
 def outer_add(a, b, c, d):
-    for i,val in enumerate(a):
-        for j,val2 in enumerate(b):
-            c[i,j] += val*val2
-        d[i] += val
+    for y in range(len(a)):
+        for i,val in enumerate(a[y]):
+            for j,val2 in enumerate(b[y]):
+                c[y,i,j] += val*val2
+            d[y,i] += val
 
 def rand_arr_w(*args): 
     return np.random.normal(loc=0.0, scale=1/np.sqrt(args[-1]+1), size=args)
