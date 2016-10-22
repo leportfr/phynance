@@ -299,7 +299,6 @@ def iterate():
     lstm_net.x_list_clear()
     
     t4 = clock()
-    print rescaled_data.shape
     curves[0].setData(rescaled_data[train_set[0],:,0])
     curves[1].setData(predList[:,0,0])
     curves[2].setData(loss_list)
