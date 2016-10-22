@@ -35,7 +35,7 @@ train_len = 100
 num_training_sets = 10
 mini_batch_size = 10
 assert(num_training_sets%mini_batch_size == 0)
-random_batch = 1
+random_batch = 0
 
 num_test_sets = 10
 
@@ -251,7 +251,7 @@ learn_rate_listB = list()
 predTestList = list()
 cur_iter=0
 t5=0
-train_set_list = np.arange(num_training_sets).reshape(mini_batch_size,num_training_sets/mini_batch_size)
+train_set_list = np.arange(num_training_sets).reshape(num_training_sets/mini_batch_size,mini_batch_size)
 def iterate():
     global curves, plots, cur_iter, t5, predTestList, train_set_list#, lf, loss_list_ema
     if random_batch:
@@ -262,7 +262,7 @@ def iterate():
             train_set_list=train_set_list.reshape(num_training_sets/mini_batch_size,mini_batch_size)
         train_set = train_set_list[cur_iter%(num_training_sets/mini_batch_size)]
     else:
-        train_set = cur_iter%(num_training_sets/mini_batch_size)    
+        train_set = train_set_list[cur_iter%(num_training_sets/mini_batch_size)]    
     
     t1 = clock()
     print '\ncur iter: ', cur_iter, train_set
