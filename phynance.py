@@ -32,22 +32,23 @@ datasize = df.shape[0]
 history_len = 365
 train_len = 100
 
-num_training_sets = 10
-mini_batch_size = 10
+num_training_sets = 100
+mini_batch_size = 100
+random_batch = 1
+num_test_sets = 100
+
 assert(num_training_sets%mini_batch_size == 0)
-random_batch = 0
+assert(num_test_sets%mini_batch_size == 0)
 
-num_test_sets = 10
-
-test_train_cutoff = 1000
-test_limit = 2500
+test_train_cutoff = 2500
+test_limit = datasize
 
 ### set RNN parameters ###
 init_learn_rate = 1.e-3
-learn_factor = 0.1
+learn_factor = 0.01
 ema_factor = 0.8#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
-dropout_rate = 0.0
+dropout_rate = 0.1
 mem_cells = [50,50,50]
 
 ###------ build and scale input and output arrays ------###
@@ -141,11 +142,11 @@ curves.append(plots[-1].plot(pen='r')) #curve 5
 curves.append(plots[-1].plot(pen='g')) #curve 6
 win.nextRow()
 
-plots.append(win.addPlot(title='test set return',colspan=2))
+plots.append(win.addPlot(title='test set return',colspan=1))
 curves.append(plots[-1].plot(stepMode=True, fillLevel=0, brush=(0,0,255,150))) #curve 7
-plots.append(win.addPlot(title='test set loss function',colspan=2))
+plots.append(win.addPlot(title='test set loss function',colspan=1))
 curves.append(plots[-1].plot(stepMode=True, fillLevel=0, brush=(0,0,255,150))) #curve 8
-plots.append(win.addPlot(title='test set return history',colspan=2*len(layer_dims)-4))
+plots.append(win.addPlot(title='test set return history',colspan=2*len(layer_dims)-2))
 plots[-1].showGrid(x=False, y=True)
 curves.append(plots[-1].plot(pen='g')) #curve 9
 curves.append(plots[-1].plot(pen='b')) #curve 10
@@ -252,8 +253,9 @@ predTestList = list()
 cur_iter=0
 t5=0
 train_set_list = np.arange(num_training_sets).reshape(num_training_sets/mini_batch_size,mini_batch_size)
+stats_graph_factor = 20
 def iterate():
-    global curves, plots, cur_iter, t5, predTestList, train_set_list#, lf, loss_list_ema
+    global cur_iter, t5, predTestList, train_set_list#, lf, loss_list_ema
     if random_batch:
 #        train_set = np.random.randint(num_training_sets) 
         if cur_iter%num_training_sets/mini_batch_size == 0:
@@ -265,36 +267,34 @@ def iterate():
         train_set = train_set_list[cur_iter%(num_training_sets/mini_batch_size)]    
     
     t1 = clock()
-    print '\ncur iter: ', cur_iter, train_set
+    print '\ncur iter: ', cur_iter#, train_set
     print 'iteration time: ', clock() - t5
     for val in np.transpose(x_list_train[train_set],(1,0,2)):
         lstm_net.x_list_add(val, dropout_rate)
     predList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
-    [return_list.append((strategy.trade(inputData[ts,-train_len:],predList[-train_len:,ts,0])[-1]-1.e5)/(ideal_return[ts]-1.e5)) for ts in train_set]
-    return_list_ma=[]
+    if cur_iter % stats_graph_factor == 0:
+        return_list.append(np.average([(strategy.trade(inputData[ts,-train_len:],predList[-train_len:,i,0])[-1]-1.e5)/(ideal_return[ts]-1.e5) for i,ts in enumerate(train_set)]))
+#    return_list_ma=[]
     print 'add x_val time: ', clock() - t1  
     
     t0 = clock()
     loss_list.append(lstm_net.y_list_is(np.transpose(y_list_train[train_set],(1,0,2)))[0]/scaleFactorAY/scaleFactorAY)
     print 'train time: ', clock() - t0
     
-#    loss_list_ema_prev = loss_list_ema
-#    loss_list_ema*=(1.-1./num_training_sets)
-#    loss_list_ema+=loss_list[-1]/num_training_sets  
-       
-    if cur_iter%1 == 0:
-        t2 = clock()
+    t2 = clock()
+    if cur_iter % stats_graph_factor == 0:
         grad_listW.append(lstm_net.getGradStatsW())
         grad_listB.append(lstm_net.getGradStatsB())
-        
-        for lyr,lstm_param in enumerate(lstm_net.lstm_params):
-            lstm_param.apply_diff(l2=l2_factor, lr=learn_factor*mini_batch_size/num_training_sets)
-            
+    
+    for lyr,lstm_param in enumerate(lstm_net.lstm_params):
+        lstm_param.apply_diff(l2=l2_factor, lr=learn_factor*mini_batch_size/num_training_sets)
+    
+    if cur_iter % stats_graph_factor == 0:
         weight_listW.append(lstm_net.getWeightStatsW())
         weight_listB.append(lstm_net.getWeightStatsB())
         learn_rate_listW.append(lstm_net.getLearnRateStatsW())
         learn_rate_listB.append(lstm_net.getLearnRateStatsB())
-        print 'apply time: ', clock() - t2
+    print 'apply time: ', clock() - t2
     
     lstm_net.x_list_clear()
     
@@ -302,30 +302,26 @@ def iterate():
     curves[0].setData(rescaled_data[train_set[0],:,0])
     curves[1].setData(predList[:,0,0])
     curves[2].setData(loss_list)
-    curves[5].setData(return_list)
-    if cur_iter%100 == 0:
-        loss_list_ma = movingaverage(loss_list,100)
-        return_list_ma = movingaverage(return_list,100)
-        curves[3].setData(np.arange(len(loss_list_ma))+100,loss_list_ma)
-        curves[6].setData(np.arange(len(return_list_ma))+100,return_list_ma)
-    if cur_iter%500 == 0:
+
+    if cur_iter % num_test_sets == 0:
         t3 = clock()
         test_return_list = []
         test_loss_list = []
         predTestList = []
-        for test_set,test_setX in enumerate(x_list_test):
-            for val in test_setX:
-                lstm_net.x_list_add(np.array([val]*mini_batch_size), 0.0)
-            predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()[:,0]))
-            test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,0],ytest_list_full[test_set,-train_len:])))
-            if test_set==0:
-                next_test_return.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
+        for i in range(num_test_sets/mini_batch_size):
+            for val in np.transpose(x_list_test[i:i+mini_batch_size],(1,0,2)):
+                lstm_net.x_list_add(val, 0.0)
+            predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()))
+            [test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,j,0],ytest_list_full[test_set,-train_len:]))) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
+            if i==0:
+                next_test_return.append((strategy.trade(testData[0,-train_len:],predTestList[-1][-train_len:,0,0])[-1]-1.e5)/(ideal_test_return[0]-1.e5))
+                [test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
             else:
-                test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5))
+                [test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
             lstm_net.x_list_clear()
         test_loss_list_ma.append(np.average(test_loss_list))
         print 'test time: ', clock() - t3
-        curves[4].setData(np.arange(len(test_loss_list_ma))*500,test_loss_list_ma)
+        curves[4].setData(np.arange(len(test_loss_list_ma))*num_test_sets,test_loss_list_ma)
         
         y_test_hist,x_test_hist = np.histogram(test_return_list, bins=np.linspace(-0.5, 1, 30))
         curves[7].setData(x_test_hist, y_test_hist)  
@@ -336,20 +332,22 @@ def iterate():
         std=np.std(test_return_list)
         test_return_plot_list.append([np.amin(test_return_list),ave-std,ave,ave+std,np.amax(test_return_list)])
         for i in range(5):
-            curves[9+i].setData(np.arange(len(test_return_plot_list))*500,np.array(test_return_plot_list)[:,i])
-        curves[14].setData(np.arange(len(test_return_plot_list))*500,next_test_return)
-    if cur_iter%1 == 0:
+            curves[9+i].setData(np.arange(len(test_return_plot_list))*num_test_sets,np.array(test_return_plot_list)[:,i])
+        curves[14].setData(np.arange(len(test_return_plot_list))*num_test_sets,next_test_return)
+        
+    if cur_iter % stats_graph_factor == 0:
+        curves[5].setData(np.arange(len(return_list))*stats_graph_factor,return_list)
         for i in range(len(layer_dims)-1):
             for j in range(7):
-                curves[15+7*i+j].setData(np.arange(len(weight_listW)),np.array(weight_listW)[:,i,j])
-                curves[(15+7*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(weight_listB)),np.array(weight_listB)[:,i,j]) 
-                curves[(15+14*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(grad_listW)),np.array(grad_listW)[:,i,j]) 
-                curves[(15+21*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(grad_listB)),np.array(grad_listB)[:,i,j]) 
-                curves[(15+28*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listW)),np.array(learn_rate_listW)[:,i,j]) 
-                curves[(15+35*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listB)),np.array(learn_rate_listB)[:,i,j])  
+                curves[15+7*i+j].setData(np.arange(len(weight_listW))*stats_graph_factor,np.array(weight_listW)[:,i,j])
+                curves[(15+7*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(weight_listB))*stats_graph_factor,np.array(weight_listB)[:,i,j]) 
+                curves[(15+14*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(grad_listW))*stats_graph_factor,np.array(grad_listW)[:,i,j]) 
+                curves[(15+21*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(grad_listB))*stats_graph_factor,np.array(grad_listB)[:,i,j]) 
+                curves[(15+28*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listW))*stats_graph_factor,np.array(learn_rate_listW)[:,i,j]) 
+                curves[(15+35*(len(layer_dims)-1))+7*i+j].setData(np.arange(len(learn_rate_listB))*stats_graph_factor,np.array(learn_rate_listB)[:,i,j])  
     
     curves[15+42*(len(layer_dims)-1)].setData(ytest_list_full[cur_iter%num_test_sets])
-    curves[15+42*(len(layer_dims)-1)+1].setData(predTestList[cur_iter%num_test_sets][:,0])
+    curves[15+42*(len(layer_dims)-1)+1].setData(predTestList[int(cur_iter/mini_batch_size)%(num_test_sets/mini_batch_size)][:,cur_iter%mini_batch_size,0])
     print 'display time: ', clock() - t4
     
 #    pickle.dump(lstm_net.getParams(), openfile)

@@ -110,7 +110,7 @@ class gOuter:
     
 if __name__ == '__main__':
     # define the (square) matrix size
-    VECTOR_SIZE_N = 50
+    VECTOR_SIZE_N = 500
     VECTOR_SIZE_L = 100
     NUMVECTORS = 100
     
@@ -142,7 +142,7 @@ if __name__ == '__main__':
     t1 = time.clock()
     gOuter.gOuter(a_cpu, b_cpu, c_gpu)
     print 'gpu calc time', time.clock() - t1
-#    gpu_gotten = c_gpu.get()
+    gpu_gotten = c_gpu
     gputime = time.clock() - t0
         
     print 'gpu time', gputime

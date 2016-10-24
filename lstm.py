@@ -24,8 +24,8 @@ class OutParam:
         # bias terms
         self.by = np.zeros(out_dim)#/10.0
         # diffs (derivative of loss function w.r.t. all parameters)
-        self.wy_diff = np.zeros((mb_size, out_dim, in_dim))
-        self.by_diff = np.zeros((mb_size, out_dim))
+        self.wy_diff = np.zeros((out_dim, in_dim))
+        self.by_diff = np.zeros(out_dim)
         # emas of diffs
         self.wy_diff_ema = np.zeros((out_dim, in_dim))
         self.by_diff_ema = np.zeros(out_dim)
@@ -33,41 +33,43 @@ class OutParam:
         self.wy_diff_ema2 = np.zeros((out_dim, in_dim))# + learn_rate
         self.by_diff_ema2 = np.zeros(out_dim)# + learn_rate
         
-        self.wy_diff_deque = deque([np.zeros_like(self.wy_diff)]*(trainMBratio-1))
-        self.by_diff_deque = deque([np.zeros_like(self.by_diff)]*(trainMBratio-1))
+        self.wy_diff_deque = deque([np.zeros_like(self.wy)]*(trainMBratio))
+        self.by_diff_deque = deque([np.zeros_like(self.by)]*(trainMBratio))
         #learning rates
         self.wy_lr = np.zeros((out_dim, in_dim)) + learn_rate
         self.by_lr = np.zeros(out_dim) + learn_rate
         
     def apply_diff(self, l2, lr):
-        wy_diff_sum = np.sum(self.wy_diff, axis=0)
-        by_diff_sum = np.sum(self.by_diff, axis=0)          
+#        wy_diff_sum = self.wy_diff#np.sum(self.wy_diff, axis=0)
+#        by_diff_sum = self.by_diff#np.sum(self.by_diff, axis=0)          
         
-        self.wy_diff_deque.appendleft(copy(wy_diff_sum))
-        self.by_diff_deque.appendleft(copy(by_diff_sum)) 
-        wy_diff_ma = np.average(self.wy_diff_deque, axis=0)
-        by_diff_ma = np.average(self.by_diff_deque, axis=0)
-        self.wy_diff_deque.pop()
-        self.by_diff_deque.pop()
+#        self.wy_diff_deque.appendleft(copy(wy_diff_sum))
+#        self.by_diff_deque.appendleft(copy(by_diff_sum)) 
+#        wy_diff_ma = np.average(self.wy_diff_deque, axis=0)
+#        by_diff_ma = np.average(self.by_diff_deque, axis=0)
+#        wy_diff_ma =self.wy_diff_deque.pop()
+#        by_diff_ma =self.by_diff_deque.pop()
         #update ema2s
         self.wy_diff_ema2 *= self.ema_rate
-        self.wy_diff_ema2 += (1. - self.ema_rate) * wy_diff_ma * wy_diff_ma + 1.e-12
+        self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff + 1.e-12
         self.by_diff_ema2 *= self.ema_rate
-        self.by_diff_ema2 += (1. - self.ema_rate) * by_diff_ma * by_diff_ma + 1.e-12
+        self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff + 1.e-12
         #update learn rates   
-        self.wy_lr *= np.clip(1.0 + lr * wy_diff_ma * self.wy_diff_ema / self.wy_diff_ema2, 0.5, 2.0)
+        self.wy_lr *= np.clip(1.0 + lr * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2, 0.5, 2.0)
+#        self.wy_lr *=  (wy_diff_sum * self.wy_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
         np.clip(self.wy_lr, LRMIN, LRMAX, out=self.wy_lr)
-        self.by_lr *= np.clip(1.0 + lr * by_diff_ma * self.by_diff_ema / self.by_diff_ema2, 0.5, 2.0)
+        self.by_lr *= np.clip(1.0 + lr * self.by_diff * self.by_diff_ema / self.by_diff_ema2, 0.5, 2.0)
+#        self.by_lr *= (by_diff_sum * self.by_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
         np.clip(self.by_lr, LRMIN, LRMAX, out=self.by_lr)  
         #update emas
         self.wy_diff_ema *= self.ema_rate
-        self.wy_diff_ema += (1. - self.ema_rate) * wy_diff_ma
+        self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
         self.by_diff_ema *= self.ema_rate
-        self.by_diff_ema += (1. - self.ema_rate) * by_diff_ma
+        self.by_diff_ema += (1. - self.ema_rate) * self.by_diff
         #update weights      
         self.wy *= (1. - self.wy_lr*l2)
-        self.wy -= self.wy_lr * wy_diff_sum
-        self.by -= self.by_lr * by_diff_sum 
+        self.wy -= self.wy_lr * self.wy_diff
+        self.by -= self.by_lr * self.by_diff 
         #reset diffs
         self.wy_diff = np.zeros_like(self.wy_diff) 
         self.by_diff = np.zeros_like(self.by_diff)
@@ -111,8 +113,8 @@ class LstmParam:
         bo = rand_arr_b(out_dim) 
         self.b = np.concatenate([bg,bi,bf,bo])#*10.0
         # diffs (derivative of loss function w.r.t. all parameters)
-        self.w_diff = np.zeros((mb_size, 4*out_dim, in_dim+out_dim))
-        self.b_diff = np.zeros((mb_size, 4*out_dim)) 
+        self.w_diff = np.zeros((4*out_dim, in_dim+out_dim))
+        self.b_diff = np.zeros(4*out_dim) 
         # temp_diffs
         self.d_input = np.zeros((mb_size, 4*out_dim))
         # emas of diffs
@@ -122,41 +124,43 @@ class LstmParam:
         self.w_diff_ema2 = np.zeros((4*out_dim, in_dim+out_dim))# + learn_rate
         self.b_diff_ema2 = np.zeros(4*out_dim)# + learn_rate 
         
-        self.w_diff_deque = deque([np.zeros_like(self.w_diff)]*(trainMBratio-1))
-        self.b_diff_deque = deque([np.zeros_like(self.b_diff)]*(trainMBratio-1))
+        self.w_diff_deque = deque([np.zeros_like(self.w)]*(trainMBratio))
+        self.b_diff_deque = deque([np.zeros_like(self.b)]*(trainMBratio))
         # learning rates
-        self.w_lr = np.zeros((4*out_dim, in_dim+out_dim)) + learn_rate * 50.0
-        self.b_lr = np.zeros(4*out_dim) + learn_rate * 50.0
+        self.w_lr = np.zeros((4*out_dim, in_dim+out_dim)) + learn_rate * out_dim
+        self.b_lr = np.zeros(4*out_dim) + learn_rate * out_dim
 
     def apply_diff(self, l2, lr):
-        w_diff_sum = np.sum(self.w_diff, axis=0)
-        b_diff_sum = np.sum(self.b_diff, axis=0)            
+#        w_diff_sum = self.w_diff#np.sum(self.w_diff, axis=0)
+#        b_diff_sum = self.b_diff#np.sum(self.b_diff, axis=0)            
         
-        self.w_diff_deque.appendleft(copy(w_diff_sum))
-        self.b_diff_deque.appendleft(copy(b_diff_sum)) 
-        w_diff_ma = np.average(self.w_diff_deque, axis=0)
-        b_diff_ma = np.average(self.b_diff_deque, axis=0)
-        self.w_diff_deque.pop()
-        self.b_diff_deque.pop()
+#        self.w_diff_deque.appendleft(copy(w_diff_sum))
+#        self.b_diff_deque.appendleft(copy(b_diff_sum)) 
+#        w_diff_ma = np.average(self.w_diff_deque, axis=0)
+#        b_diff_ma = np.average(self.b_diff_deque, axis=0)
+#        w_diff_prev = self.w_diff_deque.pop()
+#        b_diff_prev = self.b_diff_deque.pop()
         #update ema2s
         self.w_diff_ema2 *= self.ema_rate
-        self.w_diff_ema2 += (1. - self.ema_rate) * w_diff_ma * w_diff_ma + 1.e-12
+        self.w_diff_ema2 += (1. - self.ema_rate) * self.w_diff * self.w_diff + 1.e-12
         self.b_diff_ema2 *= self.ema_rate
-        self.b_diff_ema2 += (1. - self.ema_rate) * b_diff_ma * b_diff_ma + 1.e-12   
+        self.b_diff_ema2 += (1. - self.ema_rate) * self.b_diff * self.b_diff + 1.e-12   
         #update learn rates        
-        self.w_lr *= np.clip(1.0 + lr * w_diff_ma * self.w_diff_ema / self.w_diff_ema2, 0.5, 2.0)
+        self.w_lr *= np.clip(1.0 + lr * self.w_diff * self.w_diff_ema / self.w_diff_ema2, 0.5, 2.0)
+#        self.w_lr *= (w_diff_sum * self.w_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
         np.clip(self.w_lr, LRMIN, LRMAX, out=self.w_lr)
-        self.b_lr *= np.clip(1.0 + lr * b_diff_ma * self.b_diff_ema / self.b_diff_ema2, 0.5, 2.0)
+        self.b_lr *= np.clip(1.0 + lr * self.b_diff * self.b_diff_ema / self.b_diff_ema2, 0.5, 2.0)
+#        self.b_lr *=  (b_diff_sum * self.b_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
         np.clip(self.b_lr, LRMIN, LRMAX, out=self.b_lr)
         #update emas
         self.w_diff_ema *= self.ema_rate
-        self.w_diff_ema += (1. - self.ema_rate) * w_diff_ma
+        self.w_diff_ema += (1. - self.ema_rate) * self.w_diff
         self.b_diff_ema *= self.ema_rate
-        self.b_diff_ema += (1. - self.ema_rate) * b_diff_ma
+        self.b_diff_ema += (1. - self.ema_rate) * self.b_diff
         #update weights
         self.w *= (1. - self.w_lr*l2) 
-        self.w -= self.w_lr * w_diff_sum
-        self.b -= self.b_lr * b_diff_sum
+        self.w -= self.w_lr * self.w_diff
+        self.b -= self.b_lr * self.b_diff
         #reset diffs
         self.w_diff = np.zeros_like(self.w_diff)
         self.b_diff = np.zeros_like(self.b_diff)
@@ -244,13 +248,14 @@ class LstmNode:
         dropout_list=[0]*int(self.param.in_dim*dropout_rate)
         dropout_list+=[1]*(self.param.in_dim-len(dropout_list))
         np.random.shuffle(dropout_list)
-#        print '1', clock()-t0
+#        print 'bott_data_is 0', clock()-t0
+        
 #        t0=clock()
         bottom_data_is_func(self.inptc, inpt*dropout_list, self.param.out_dim, 
                             self.param.w, self.param.b, h_prev, s_prev, self.state.g, 
                             self.state.i, self.state.f, self.state.o, self.state.s, 
                             self.state.h)
-#        print '2', clock()-t0
+#        print 'bott_data_is 1', clock()-t0
     
     def top_diff_is(self, top_diff_h, top_diff_s):
         

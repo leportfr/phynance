@@ -6,11 +6,12 @@ import math
 from math import tanh
 np.random.seed(0)
 
-#@numba.jit(nopython=True)
-#def dot_add(a, b, c):
-#    for j,val2 in enumerate(b):
-#        for i,val in enumerate(a.T[j]):
-#            c[i]+=val*val2
+@numba.jit(nopython=True)
+def dot_add(a, b, c):
+    for i in range(len(a)):
+        for j,val in enumerate(a[0]):
+            for k,val2 in enumerate(b[0]):
+                c[i,j]+=a[i,j]*b[j,k]
             
 @numba.jit(nopython=True)
 def sigmoid(x):
@@ -39,7 +40,7 @@ def bottom_data_is_func(inptc, dropout_list, out_dim, w, b, h_prev, s_prev, g, i
     hstack(dropout_list,  h_prev, inptc)
     
     dotprod = np.dot(w, inptc.T).T
-    for y in range(len(inptc)):
+    for y in range(len(g)):
         for x in range(out_dim):
             g[y,x] = tanh(dotprod[y,x]+b[x])
             i[y,x] = sigmoid(dotprod[y,x+out_dim]+b[x+out_dim])
@@ -65,8 +66,8 @@ def outer_add(a, b, c, d):
     for y in range(len(a)):
         for i,val in enumerate(a[y]):
             for j,val2 in enumerate(b[y]):
-                c[y,i,j] += val*val2
-            d[y,i] += val
+                c[i,j] += val*val2
+            d[i] += val
 
 def rand_arr_w(*args): 
     return np.random.normal(loc=0.0, scale=1/np.sqrt(args[-1]+1), size=args)
@@ -83,20 +84,24 @@ def bottom_diff(pred, label):
     return pred - label        
 
 if __name__ == '__main__':
-    a = np.random.rand(100,200)
-    b = np.random.rand(200)
-    c1 = np.zeros(100)
-    c2 = np.random.rand(100)
-    c3 = copy(c2)
+    a1 = np.random.rand(10,100)
+    b1 = np.random.rand(10,200)
+    c1 = np.zeros((10,100,200))
+    d1 = np.zeros((10,100))
+    
+    a2 = copy(a1)
+    b2 = copy(b1)
+    c2 = copy(c1)
+    d2 = copy(d1)
     
     t0 = clock()
-    for i in range(100000):
-        c2+=np.dot(a,b)
+    for i in range(10000):
+        outer_add2(a2,b2,c2,d2)
     print clock() - t0
     
     t0 = clock()
-    for i in range(100000):
-        dot_add(a,b,c3)
+    for i in range(10000):
+        outer_add(a1,b1,c1,d1)
     print clock() - t0
     
-    print np.average(c3-c2)
+    print np.average(c2-c1)
