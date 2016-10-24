@@ -170,12 +170,46 @@ def trade(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit):
     bidmul=1.0-bidask/2.0
     
     for i,sp in enumerate(stock_price):
-        if trades[i]>0.5 and dollars>=(stock_price[i]*askmul+com):
+        if i < len(stock_price)-1:
+            if trades[i]>0.1 and dollars>=(stock_price[i]*askmul+com) and trades[i+1]<0.1:
+                newshares=int((dollars-com)/(stock_price[i]*askmul))
+                shares+=newshares
+    #            print 'if', shares, dollars
+                dollars-=newshares*(stock_price[i]*askmul)+com
+            elif trades[i]<-0.1 and shares>0 and trades[i+1]>-0.1:
+                dollars+=shares*(stock_price[i]*bidmul)-com
+    #            print 'elif', shares, dollars
+                shares=0
+        else:
+            if trades[i]>0.1 and dollars>=(stock_price[i]*askmul+com):
+                newshares=int((dollars-com)/(stock_price[i]*askmul))
+                shares+=newshares
+    #            print 'if', shares, dollars
+                dollars-=newshares*(stock_price[i]*askmul)+com
+            elif trades[i]<-0.1 and shares>0:
+                dollars+=shares*(stock_price[i]*bidmul)-com
+    #            print 'elif', shares, dollars
+                shares=0
+        value.append(dollars+shares*stock_price[i])
+#        print 'out', shares, dollars, value[-1], stock_price[i]
+    
+    return value
+    
+def tradeOLD(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit):
+    dollars=sdol
+    shares=0
+    value=list()   
+    
+    askmul=1.0+bidask/2.0
+    bidmul=1.0-bidask/2.0
+    
+    for i,sp in enumerate(stock_price):
+        if trades[i]>0.1 and dollars>=(stock_price[i]*askmul+com):
             newshares=int((dollars-com)/(stock_price[i]*askmul))
             shares+=newshares
 #            print 'if', shares, dollars
             dollars-=newshares*(stock_price[i]*askmul)+com
-        elif trades[i]<-0.5 and shares>0:
+        elif trades[i]<-0.1 and shares>0:
             dollars+=shares*(stock_price[i]*bidmul)-com
 #            print 'elif', shares, dollars
             shares=0

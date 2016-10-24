@@ -1,5 +1,8 @@
 import pandas as pd
+import numpy as np
 import os
+
+np.random.seed(0)
 
 def loadData():
     #locate data files
@@ -19,3 +22,36 @@ def loadData():
     df = sp500.loc[:,:,'close'].dropna()
     
     return df
+    
+def loadDataTest():
+    #locate data files
+    init = [np.random.rand() + 0.5 for i in range(100)]
+    pos = np.random.choice(99,size=10)
+    randarr = np.random.rand(99) + 1./3
+    
+    for i in range(3926-len(init)):
+        x=np.average(np.array(init)[i+pos]) * randarr[pos[i%10]]
+        init.append(x)
+    
+    df = init
+    return np.array(df).reshape([len(df),1])
+    
+#def loadData2():
+#    #locate data files
+#    randmult = np.random.randint(5,size=50)
+#    randarr2 = np.random.rand(5)
+#    init = [np.random.rand() + 0.5 for i in range(100)]
+#    init2 = 
+#    
+#    pos = np.random.choice(99,size=10)
+#    randarr = np.random.rand(99) + 1./3
+#    
+#    for i in range(3926-len(init)):
+#        x=np.average(np.array(init)[i+pos]) * randarr[pos[i%10]]
+#        init.append(x)
+#    
+#    df = init
+#    return np.array(df).reshape([len(df),1])
+    
+if __name__ == '__main__':
+    print loadDataTest()

@@ -45,7 +45,7 @@ test_limit = datasize
 
 ### set RNN parameters ###
 init_learn_rate = 1.e-3
-learn_factor = 0.01
+learn_factor = 0.1
 ema_factor = 0.8#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
 dropout_rate = 0.1
@@ -83,8 +83,8 @@ x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff),(1,2
 ## build and scale output and test arrays
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in inputData])[1]
 y_list_full = np.zeros([num_training_sets,history_len+train_len])
-mult=1
 for j,sublist in enumerate(buySellList):
+    mult = 1
     for i in sublist:
         y_list_full[j,i] = mult
         mult*=-1
@@ -102,8 +102,8 @@ rescaled_data = np.reshape(rescaleY(scaleFactorAY, scaleFactorBY, y_list_full).T
 
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in testData])[1]
 ytest_list_full = np.zeros([num_test_sets,history_len+train_len])
-mult=1
 for j,sublist in enumerate(buySellList):
+    mult=1
     for i in sublist:
         ytest_list_full[j,i] = mult
         mult*=-1
@@ -114,7 +114,7 @@ for j,sublist in enumerate(buySellList):
 ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:])[-1] for i in range(num_test_sets)]
 
 ###------ build visualization window and execute training ------###
-wintitle='rnlogqotin1sclCROSSENT,NOEMA,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+wintitle='rnlogqotin1sclCROSSENT,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
 win.resize(1575,825)
