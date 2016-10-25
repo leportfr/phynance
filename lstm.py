@@ -166,7 +166,7 @@ class LstmParam:
         self.b_diff = np.zeros_like(self.b_diff)
         
     def getParams(self):
-        return (self.wg, self.wi, self.wf, self.wo, self.bg, self.bi, self.bf, self.bo)
+        return (self.w, self.b)
     
     def getWeightStatsW(self):
         arr = np.abs(self.w)

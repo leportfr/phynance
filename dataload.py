@@ -4,6 +4,25 @@ import os
 
 np.random.seed(0)
 
+def loadTrueTestData():
+    #locate data files
+    curdir = os.path.dirname(__file__)
+    datadir = os.path.join(curdir, 'Data/')
+    filelist = os.listdir(datadir)[0:1]
+    
+    #load stock data
+    sp500dict = {}
+    for i,filename in enumerate(filelist):
+        stockSymbol = filename[6:-4]
+        stockData = pd.read_csv(os.path.join(datadir, filename),index_col=0,header=None,
+                                names=('Date','Open','High','Low','Close','Volume','Adj Close'))
+        sp500dict[str(stockSymbol)] = stockData
+    sp500 = pd.Panel(sp500dict)
+#    print sp500
+    df = sp500.loc[:,:,'Close'].dropna()
+    
+    return df[::-1][:-1]
+
 def loadData():
     #locate data files
     curdir = os.path.dirname(__file__)
@@ -54,4 +73,5 @@ def loadDataTest():
 #    return np.array(df).reshape([len(df),1])
     
 if __name__ == '__main__':
-    print loadDataTest()
+    dfTrue = loadTrueTestData()
+    print np.array([np.array(dfTrue).astype(np.float64).T[0,-(465):] for i in range(10)])
