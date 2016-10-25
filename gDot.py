@@ -86,9 +86,9 @@ __global__ void MatrixMulKernel(float *A, float *B, float *C)
 """
 
 # define the (square) matrix size
-MATRIX_SIZE_M = 1200
-MATRIX_SIZE_K = 600
-MATRIX_SIZE_N = 1800
+MATRIX_SIZE_M = 1000
+MATRIX_SIZE_K = 100
+MATRIX_SIZE_N = 200
 
 # define size of blocks and tiles sub-matrix 
 # (we assume that the block size is same as tile size)
@@ -135,15 +135,17 @@ if __name__ == '__main__':
     cputime = time.clock() - t0
     print cputime
     
+    # create empty gpu array for the result (C = A * B)
+    c_gpu = gpuarray.empty((MATRIX_SIZE_M, MATRIX_SIZE_N), np.float32)    
+    
     # transfer host (CPU) memory to device (GPU) memory 
+    t0 = time.clock()
     a_gpu = gpuarray.to_gpu(a_cpu) 
     b_gpu = gpuarray.to_gpu(b_cpu)
     
-    # create empty gpu array for the result (C = A * B)
-    c_gpu = gpuarray.empty((MATRIX_SIZE_M, MATRIX_SIZE_N), np.float32)
     # call the kernel on the card
-    t0 = time.clock()
     gDot(a_gpu, b_gpu, c_gpu)
+    c_gpu_out = c_gpu.get()
     gputime = time.clock() - t0
     print gputime
     print cputime/gputime
@@ -164,5 +166,5 @@ if __name__ == '__main__':
     print "-" * 80
 #    print "CPU-GPU difference:"
 #    print c_cpu - c_gpu.get()
-    print "L2 norm:", la.norm(c_cpu - c_gpu.get())
-    np.allclose(c_cpu, c_gpu.get())
+    print "L2 norm:", la.norm(c_cpu - c_gpu_out)
+    np.allclose(c_cpu, c_gpu_out)
