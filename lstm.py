@@ -20,80 +20,79 @@ class OutParam:
         self.learn_rate = learn_rate
         self.ema_rate = ema_rate
         # weight matrices        
-        self.wy = rand_arr_w(out_dim, in_dim)#/10.0
+        self.w = rand_arr_w(out_dim, in_dim)#/10.0
         # bias terms
-        self.by = np.zeros(out_dim)#/10.0
+        self.b = np.zeros(out_dim)#/10.0
         # diffs (derivative of loss function w.r.t. all parameters)
-        self.wy_diff = np.zeros((out_dim, in_dim))
-        self.by_diff = np.zeros(out_dim)
+        self.w_diff = np.zeros((out_dim, in_dim))
+        self.b_diff = np.zeros(out_dim)
         # emas of diffs
-        self.wy_diff_ema = np.zeros((out_dim, in_dim))
-        self.by_diff_ema = np.zeros(out_dim)
+        self.w_diff_ema = np.zeros((out_dim, in_dim))
+        self.b_diff_ema = np.zeros(out_dim)
         
-        self.wy_diff_ema2 = np.zeros((out_dim, in_dim))# + learn_rate
-        self.by_diff_ema2 = np.zeros(out_dim)# + learn_rate
+        self.w_diff_ema2 = np.zeros((out_dim, in_dim))# + learn_rate
+        self.b_diff_ema2 = np.zeros(out_dim)# + learn_rate
         
-        self.wy_diff_deque = deque([np.zeros_like(self.wy)]*(trainMBratio))
-        self.by_diff_deque = deque([np.zeros_like(self.by)]*(trainMBratio))
+        self.w_diff_deque = deque([np.zeros_like(self.w)]*(trainMBratio))
+        self.b_diff_deque = deque([np.zeros_like(self.b)]*(trainMBratio))
         #learning rates
-        self.wy_lr = np.zeros((out_dim, in_dim)) + learn_rate
-        self.by_lr = np.zeros(out_dim) + learn_rate
+        self.w_lr = np.zeros((out_dim, in_dim)) + learn_rate
+        self.b_lr = np.zeros(out_dim) + learn_rate
         
     def apply_diff(self, l2, lr):
-#        wy_diff_sum = self.wy_diff#np.sum(self.wy_diff, axis=0)
-#        by_diff_sum = self.by_diff#np.sum(self.by_diff, axis=0)          
+#        w_diff_sum = self.w_diff#np.sum(self.w_diff, axis=0)
+#        b_diff_sum = self.b_diff#np.sum(self.b_diff, axis=0)          
         
-#        self.wy_diff_deque.appendleft(copy(wy_diff_sum))
-#        self.by_diff_deque.appendleft(copy(by_diff_sum)) 
-#        wy_diff_ma = np.average(self.wy_diff_deque, axis=0)
-#        by_diff_ma = np.average(self.by_diff_deque, axis=0)
-#        wy_diff_ma =self.wy_diff_deque.pop()
-#        by_diff_ma =self.by_diff_deque.pop()
+#        self.w_diff_deque.appendleft(copy(w_diff_sum))
+#        self.b_diff_deque.appendleft(copy(b_diff_sum)) 
+#        w_diff_ma = np.average(self.w_diff_deque, axis=0)
+#        b_diff_ma = np.average(self.b_diff_deque, axis=0)
+#        w_diff_ma =self.w_diff_deque.pop()
+#        b_diff_ma =self.b_diff_deque.pop()
         #update ema2s
-        self.wy_diff_ema2 *= self.ema_rate
-        self.wy_diff_ema2 += (1. - self.ema_rate) * self.wy_diff * self.wy_diff + 1.e-12
-        self.by_diff_ema2 *= self.ema_rate
-        self.by_diff_ema2 += (1. - self.ema_rate) * self.by_diff * self.by_diff + 1.e-12
+        self.w_diff_ema2 *= self.ema_rate
+        self.w_diff_ema2 += (1. - self.ema_rate) * self.w_diff * self.w_diff + 1.e-12
+        self.b_diff_ema2 *= self.ema_rate
+        self.b_diff_ema2 += (1. - self.ema_rate) * self.b_diff * self.b_diff + 1.e-12
         #update learn rates   
-        self.wy_lr *= np.clip(1.0 + lr * self.wy_diff * self.wy_diff_ema / self.wy_diff_ema2, 0.5, 2.0)
-#        self.wy_lr *=  (wy_diff_sum * self.wy_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
-        np.clip(self.wy_lr, LRMIN, LRMAX, out=self.wy_lr)
-        self.by_lr *= np.clip(1.0 + lr * self.by_diff * self.by_diff_ema / self.by_diff_ema2, 0.5, 2.0)
-#        self.by_lr *= (by_diff_sum * self.by_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
-        np.clip(self.by_lr, LRMIN, LRMAX, out=self.by_lr)  
+        self.w_lr *= np.clip(1.0 + lr * self.w_diff * self.w_diff_ema / self.w_diff_ema2, 0.5, 2.0)
+#        self.w_lr *=  (w_diff_sum * self.w_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
+        np.clip(self.w_lr, LRMIN, LRMAX, out=self.w_lr)
+        self.b_lr *= np.clip(1.0 + lr * self.b_diff * self.b_diff_ema / self.b_diff_ema2, 0.5, 2.0)
+#        self.b_lr *= (b_diff_sum * self.b_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
+        np.clip(self.b_lr, LRMIN, LRMAX, out=self.b_lr)  
         #update emas
-        self.wy_diff_ema *= self.ema_rate
-        self.wy_diff_ema += (1. - self.ema_rate) * self.wy_diff
-        self.by_diff_ema *= self.ema_rate
-        self.by_diff_ema += (1. - self.ema_rate) * self.by_diff
+        self.w_diff_ema *= self.ema_rate
+        self.w_diff_ema += (1. - self.ema_rate) * self.w_diff
+        self.b_diff_ema *= self.ema_rate
+        self.b_diff_ema += (1. - self.ema_rate) * self.b_diff
         #update weights      
-        self.wy *= (1. - self.wy_lr*l2)
-        self.wy -= self.wy_lr * self.wy_diff
-        self.by -= self.by_lr * self.by_diff 
+        self.w *= (1. - self.w_lr*l2)
+        self.w -= self.w_lr * self.w_diff
+        self.b -= self.b_lr * self.b_diff 
         #reset diffs
-        self.wy_diff = np.zeros_like(self.wy_diff) 
-        self.by_diff = np.zeros_like(self.by_diff)
+        self.w_diff = np.zeros_like(self.w_diff) 
+        self.b_diff = np.zeros_like(self.b_diff)
         
     def getParams(self):
-        return (self.wy, self.by)
-        
+        return (self.w, self.b)
     def getWeightStatsW(self):
-        arr = np.abs(self.wy)
+        arr = np.abs(self.w)
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
     def getWeightStatsB(self):
-        arr = np.abs(self.by)
+        arr = np.abs(self.b)
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
     def getGradStatsW(self):
-        arr = np.abs(self.wy_diff)
+        arr = np.abs(self.w_diff)
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
     def getGradStatsB(self):
-        arr = np.abs(self.by_diff)
+        arr = np.abs(self.b_diff)
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]   
     def getLearnRateStatsW(self):
-        arr = self.wy_lr
+        arr = self.w_lr
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
     def getLearnRateStatsB(self):        
-        arr = self.by_lr
+        arr = self.b_lr
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
 
         
@@ -167,7 +166,6 @@ class LstmParam:
         
     def getParams(self):
         return (self.w, self.b)
-    
     def getWeightStatsW(self):
         arr = np.abs(self.w)
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
@@ -216,17 +214,17 @@ class OutNode:
         np.random.shuffle(dropout_list)
         self.h = h*dropout_list
         
-#        self.state.y = np.tanh(np.dot(self.param.wy, self.h) + self.param.by)
-        self.state.y = expit(np.dot(self.param.wy, self.h.T).T + self.param.by)
+#        self.state.y = np.tanh(np.dot(self.param.w, self.h) + self.param.b)
+        self.state.y = expit(np.dot(self.param.w, self.h.T).T + self.param.b)
         
     def top_diff_is(self, top_diff_y):
         dy_input = top_diff_y
 #        dy_input = (1. - self.state.y * self.state.y) * top_diff_y
 #        dy_input = (1. - self.state.y) * self.state.y * top_diff_y
 
-        outer_add(dy_input, self.h, self.param.wy_diff, self.param.by_diff)
+        outer_add(dy_input, self.h, self.param.w_diff, self.param.b_diff)
         
-        self.state.bottom_diff_h = np.dot(self.param.wy.T, dy_input.T).T  
+        self.state.bottom_diff_h = np.dot(self.param.w.T, dy_input.T).T  
     
 class LstmNode:
     def __init__(self, lstm_param, lstm_state):#, gOuter):
@@ -291,6 +289,11 @@ class LstmNetwork():
         self.out_node_list = []
         # input sequence
         self.x_list = []
+        
+    def setParameters(self, w, b):
+        for i in range(self.num_layers-1):
+            self.lstm_params[i].w = w[i]
+            self.lstm_params[i].b = b[i]
         
 #        self.gOuter1 = gOuter.gOuter(layer_dims[1]/10,3)
 #        self.gOuter2 = gOuter.gOuter(layer_dims[1]/25,layer_dims[1]/25)

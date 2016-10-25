@@ -1,11 +1,11 @@
 import numpy as np
 from numba import autojit
 
-sdolinit = 1.0e5
-bidaskinit = 0.005
-cominit = 9.99
+#sdolinit = 1.0e5
+#bidaskinit = 0.005
+#cominit = 9.99
 
-def ewma_strategy(stock_price, pred_ewma, sdol=sdolinit, bidask=bidaskinit, com=cominit):
+def ewma_strategy(stock_price, pred_ewma, sdol, bidask, com):
     dollars=sdol
     shares=0
     value=list()
@@ -29,7 +29,7 @@ def ewma_strategy(stock_price, pred_ewma, sdol=sdolinit, bidask=bidaskinit, com=
     
     return value
     
-def ideal_strategy(stock_price, sdol=sdolinit, sshares=0, bidask=bidaskinit, com=cominit):        
+def ideal_strategy(stock_price, sshares, sdol, bidask, com):        
     askmul=1.0+bidask/2.0
     bidmul=1.0-bidask/2.0
     buySellList=list()
@@ -97,7 +97,7 @@ def ideal_strategy(stock_price, sdol=sdolinit, sshares=0, bidask=bidaskinit, com
     
     return (dollars,buySellList)
     
-def ideal_strategyOrg(stock_price, sdol=sdolinit, bidask=bidaskinit, com=cominit):
+def ideal_strategyOrg(stock_price, sdol, bidask, com):
     shifts=np.diff(np.array(np.diff(stock_price[:])>0,dtype=int))
     enumshifts=np.array(list(enumerate(shifts)))
     changePoints=enumshifts[enumshifts[:,1]!=0]
@@ -133,7 +133,7 @@ def ideal_strategyOrg(stock_price, sdol=sdolinit, bidask=bidaskinit, com=cominit
     
     return (dollars,buySellList)
     
-def trade_abs(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit):
+def trade_abs(stock_price, trades, sdol, bidask, com):
     assert(len(stock_price)==len(trades))
     
     dollars=sdol
@@ -161,7 +161,7 @@ def trade_abs(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit
     
     return value
     
-def trade(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit):
+def trade(stock_price, trades, sdol, bidask, com):
     dollars=sdol
     shares=0
     value=list()   
@@ -195,7 +195,7 @@ def trade(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit):
     
     return value
     
-def tradeOLD(stock_price, trades, sdol=sdolinit, bidask=bidaskinit, com=cominit):
+def tradeOLD(stock_price, trades, sdol, bidask, com):
     dollars=sdol
     shares=0
     value=list()   

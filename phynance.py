@@ -51,6 +51,10 @@ l2_factor = 0.0
 dropout_rate = 0.0
 mem_cells = [50,50,50]
 
+sdolinit = 1.0e5
+bidaskinit = 0.005
+cominit = 9.99
+
 ###------ build and scale input and output arrays ------###
 iterations = int(1e2)
 x_dim = 1#x_list.shape[1]
@@ -94,7 +98,7 @@ else:
     x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff),(1,2,0))    
 
 ## build and scale output and test arrays
-buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in inputData])[1]
+buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):], sshares=0, sdol=sdolinit, bidask=bidaskinit, com=cominit) for inpt in inputData])[1]
 y_list_full = np.zeros([num_training_sets,history_len+train_len])
 for j,sublist in enumerate(buySellList):
     mult = 1
@@ -105,7 +109,7 @@ for j,sublist in enumerate(buySellList):
 #    for j,val in enumerate(sublist):
 #        if val==0:
 #            y_list_full[i,j]=y_list_full[i,j-1]
-ideal_return = [strategy.trade(inputData[i,-train_len:],y_list_full[i,-train_len:])[-1] for i in range(num_training_sets)]
+ideal_return = [strategy.trade(inputData[i,-train_len:],y_list_full[i,-train_len:], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1] for i in range(num_training_sets)]
 
 scaleFactorBY=-1.0
 scaleFactorAY=scalerangeY/(1.0-scaleFactorBY)
@@ -113,7 +117,7 @@ y_list_full = scaleY(scaleFactorAY, scaleFactorBY, y_list_full).T
 y_list_train = np.reshape(y_list_full[-train_len:].T,[num_training_sets,train_len,1])
 rescaled_data = np.reshape(rescaleY(scaleFactorAY, scaleFactorBY, y_list_full).T,[num_training_sets,len(y_list_full),1])
 
-buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in testData])[1]
+buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):], sshares=0, sdol=sdolinit, bidask=bidaskinit, com=cominit) for inpt in testData])[1]
 ytest_list_full = np.zeros([num_test_sets,history_len+train_len])
 for j,sublist in enumerate(buySellList):
     mult=1
@@ -124,7 +128,7 @@ for j,sublist in enumerate(buySellList):
 #    for j,val in enumerate(sublist):
 #        if val==0:
 #            ytest_list_full[i,j]=ytest_list_full[i,j-1]
-ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:])[-1] for i in range(num_test_sets)]
+ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1] for i in range(num_test_sets)]
 print 'ave yearly test return', (np.average(ideal_test_return)/1.e5)**(365./100*5/7)
 
 ###------ build visualization window and execute training ------###
@@ -288,7 +292,7 @@ def iterate():
         lstm_net.x_list_add(val, dropout_rate)
     predList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
     if cur_iter % stats_graph_factor == 0:
-        return_list.append(np.average([(strategy.trade(inputData[ts,-train_len:],predList[-train_len:,i,0])[-1]-1.e5)/(ideal_return[ts]-1.e5) for i,ts in enumerate(train_set)]))
+        return_list.append(np.average([(strategy.trade(inputData[ts,-train_len:],predList[-train_len:,i,0], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_return[ts]-1.e5) for i,ts in enumerate(train_set)]))
 #    return_list_ma=[]
     print 'add x_val time: ', clock() - t1  
     
@@ -329,10 +333,10 @@ def iterate():
             predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()))
             [test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,j,0],ytest_list_full[test_set,-train_len:]))) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
             if i==0:
-                next_test_return.append((strategy.trade(testData[0,-train_len:],predTestList[-1][-train_len:,0,0])[-1]-1.e5)/(ideal_test_return[0]-1.e5))
-                [test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
+                next_test_return.append((strategy.trade(testData[0,-train_len:],predTestList[-1][-train_len:,0,0], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[0]-1.e5))
+                [test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
             else:
-                [test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0])[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
+                [test_return_list.append((strategy.trade(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
             lstm_net.x_list_clear()
         test_loss_list_ma.append(np.average(test_loss_list))
         print 'test time: ', clock() - t3
@@ -374,20 +378,20 @@ def iterate():
     predTrueTestList=0
     if cur_iter>=0:
         ## build and scale output and test arrays
-        buySellListTrue = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in inputTrueData])[1]
+        buySellListTrue = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):], sshares=0, sdol=sdolinit, bidask=bidaskinit, com=cominit) for inpt in inputTrueData])[1]
         y_list_true_full = np.zeros([num_training_sets,history_len+train_len])
         for j,sublist in enumerate(buySellListTrue):
             mult = 1
             for i in sublist:
                 y_list_true_full[:,i] = mult
                 mult*=-1
-        ideal_true_return = [strategy.trade(inputTrueData[i,-train_len:],y_list_true_full[i,-train_len:])[-1] for i in range(num_training_sets)]
+        ideal_true_return = [strategy.trade(inputTrueData[i,-train_len:],y_list_true_full[i,-train_len:], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1] for i in range(num_training_sets)]
         print 'ideal true test return', ideal_true_return[0]
         
         for i,val in enumerate(np.transpose(x_list_true_train[0:mini_batch_size],(1,0,2))):
             lstm_net.x_list_add(val, 0.0)
         predTrueTestList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
-        print 'pred true test return factor', (strategy.trade(inputTrueData[0,-train_len:],predTrueTestList[-train_len:,0,0])[-1]-1.e5)/(ideal_true_return[0]-1.e5)
+        print 'pred true test return factor', (strategy.trade(inputTrueData[0,-train_len:],predTrueTestList[-train_len:,0,0], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_true_return[0]-1.e5)
         lstm_net.x_list_clear()
     
 timer = QtCore.QTimer()

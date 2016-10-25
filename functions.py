@@ -81,7 +81,11 @@ def loss_func(pred, label):
 
 def bottom_diff(pred, label):
 #    return 2 * (pred - label)
-    return pred - label        
+    return pred - label    
+
+def movingaverage(values, window):
+#    weights = np.repeat(1.0, window)/window
+    return np.convolve(values, [1.0/window]*window, 'valid')    
 
 if __name__ == '__main__':
     a1 = np.random.rand(10,100)
