@@ -4,7 +4,7 @@ import numba
 from copy import copy
 import math
 from math import tanh
-np.random.seed(0)
+np.random.seed(63)
 
 @numba.jit(nopython=True)
 def dot_add(a, b, c):

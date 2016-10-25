@@ -48,7 +48,7 @@ init_learn_rate = 1.e-3
 learn_factor = 0.1
 ema_factor = 0.8#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
-dropout_rate = 0.1
+dropout_rate = 0.0
 mem_cells = [50,50,50]
 
 ###------ build and scale input and output arrays ------###
@@ -58,11 +58,12 @@ y_dim = 1
 layer_dims = [x_dim]+mem_cells+[y_dim]
 lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_factor**(float(mini_batch_size)/float(num_training_sets)), num_training_sets/mini_batch_size, mini_batch_size)
 
-np.random.seed(10)
+np.random.seed(85)
 ## build and scale input and test arrays
-inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1:i+test_train_cutoff+2*history_len+2*train_len+2] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2),size=num_test_sets-1,replace=False)])
-testData = np.concatenate([[np.array(df).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1]],testData])
+mov1 = 0
+inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets-1,replace=False)])
+testData = np.concatenate([[np.array(df).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]],testData])
 
 inputDataDiffQuot = (inputData[:,1:]-inputData[:,:-1])/inputData[:,:-1]
 testDataDiffQuot = (testData[:,1:]-testData[:,:-1])/testData[:,:-1]
@@ -73,7 +74,7 @@ testDataDiff = np.array([np.sign(testDataDiffQuot)*np.nan_to_num(np.log10(np.abs
 #testDataDiff = np.concatenate([testDataDiff,[np.diff(testData,axis=1)]])
 
 dfTrue = loadTrueTestData()    
-inputTrueData = np.array([np.array(dfTrue).astype(np.float64).T[0,-(history_len+train_len+1):] for i in range(mini_batch_size)])
+inputTrueData = np.array([np.array(dfTrue).astype(np.float64).T[0,-(history_len+train_len+1+mov1):] for i in range(mini_batch_size)])
 inputTrueDataDiffQuot = (inputTrueData[:,1:]-inputTrueData[:,:-1])/inputTrueData[:,:-1]
 minval = np.amin([np.amin(np.abs(inputTrueDataDiffQuot[np.nonzero(inputTrueDataDiffQuot)]))])/10.0
 inputTrueDataDiff = np.array([np.sign(inputTrueDataDiffQuot)*np.nan_to_num(np.log10(np.abs(inputTrueDataDiffQuot/minval)))])
@@ -83,9 +84,14 @@ scaleFactorA=scalerangeX/(np.amax(np.amax(np.concatenate([inputDataDiff,testData
 #print np.average([np.average(inputDataDiff),np.average(testDataDiff)]), np.amin([np.amin(inputDataDiff),np.amin(testDataDiff)]), np.amax([np.amax(inputDataDiff),np.amax(testDataDiff)])
 #sys.exit()
 
-x_list_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputDataDiff),(1,2,0))
-x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff),(1,2,0))
-x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff),(1,2,0))
+if mov1 == 1:
+    x_list_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputDataDiff[:,:,-(history_len+train_len+mov1):-mov1]),(1,2,0))
+    x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff[:,:,-(history_len+train_len+mov1):-mov1]),(1,2,0))
+    x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff[:,:,-(history_len+train_len+mov1):-mov1]),(1,2,0))
+else:
+    x_list_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputDataDiff),(1,2,0))
+    x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff),(1,2,0))
+    x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff),(1,2,0))    
 
 ## build and scale output and test arrays
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):]) for inpt in inputData])[1]
@@ -119,7 +125,7 @@ for j,sublist in enumerate(buySellList):
 #        if val==0:
 #            ytest_list_full[i,j]=ytest_list_full[i,j-1]
 ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-train_len:])[-1] for i in range(num_test_sets)]
-print 'ave yearly test return', (np.average(ideal_test_return)/1.e5)**(365./100)
+print 'ave yearly test return', (np.average(ideal_test_return)/1.e5)**(365./100*5/7)
 
 ###------ build visualization window and execute training ------###
 wintitle='rnlogqotin1sclCROSSENT,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
@@ -319,7 +325,7 @@ def iterate():
         predTestList = []
         for i in range(num_test_sets/mini_batch_size):
             for val in np.transpose(x_list_test[i:i+mini_batch_size],(1,0,2)):
-                lstm_net.x_list_add(val, 0.0)
+                lstm_net.x_list_add(val, 0.0)#*(((np.random.rand(mini_batch_size)+.5)/50.0).reshape((100,1))), 0.0)
             predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()))
             [test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,j,0],ytest_list_full[test_set,-train_len:]))) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
             if i==0:
