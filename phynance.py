@@ -26,16 +26,16 @@ def movingaverage(values, window):
     return np.convolve(values, [1.0/window]*window, 'valid')
 
 df = loadData()
-datasize = df.shape[0]
+datasize = df.shape[1]
 
 ##array parameters
-history_len = 365
-train_len = 100
+history_len = 100
+train_len = 30
 
-num_training_sets = 100
-mini_batch_size = 100
+num_training_sets = 1000
+mini_batch_size = 1000
 random_batch = 1
-num_test_sets = 100
+num_test_sets = 1000
 
 assert(num_training_sets%mini_batch_size == 0)
 assert(num_test_sets%mini_batch_size == 0)
@@ -52,12 +52,12 @@ dropout_rate = 0.0
 mem_cells = [50,50,50]
 
 sdolinit = 1.0e5
-bidaskinit = 0.005
+bidaskinit = 0.02
 cominit = 9.99
 
 ###------ build and scale input and output arrays ------###
 iterations = int(1e2)
-x_dim = 1#x_list.shape[1]
+x_dim = 2#x_list.shape[1]
 y_dim = 1
 layer_dims = [x_dim]+mem_cells+[y_dim]
 lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_factor**(float(mini_batch_size)/float(num_training_sets)), num_training_sets/mini_batch_size, mini_batch_size)
@@ -65,37 +65,41 @@ lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_fac
 np.random.seed(85)
 ## build and scale input and test arrays
 mov1 = 0
-inputData = np.array([np.array(df).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testData = np.array([np.array(df).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets-1,replace=False)])
-testData = np.concatenate([[np.array(df).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]],testData])
+inputData = np.array([np.array(df.loc[:,:,'close']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testData = np.array([np.array(df.loc[:,:,'close']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets-1,replace=False)])
+testData = np.concatenate([[np.array(df.loc[:,:,'close']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]],testData])
+
+inputDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets-1,replace=False)])
+testDataVol = np.concatenate([[np.array(df.loc[:,:,'volume']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]],testDataVol])
 
 inputDataDiffQuot = (inputData[:,1:]-inputData[:,:-1])/inputData[:,:-1]
 testDataDiffQuot = (testData[:,1:]-testData[:,:-1])/testData[:,:-1]
 minval = np.amin([np.amin(np.abs(inputDataDiffQuot[np.nonzero(inputDataDiffQuot)])),np.amin(np.abs(testDataDiffQuot[np.nonzero(testDataDiffQuot)]))])/10.0
 inputDataDiff = np.array([np.sign(inputDataDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataDiffQuot/minval)))])
 testDataDiff = np.array([np.sign(testDataDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataDiffQuot/minval)))])
-#inputDataDiff = np.concatenate([inputDataDiff,[np.diff(inputData,axis=1)]])
-#testDataDiff = np.concatenate([testDataDiff,[np.diff(testData,axis=1)]])
+inputDataDiff = np.concatenate([inputDataDiff,[inputDataVol[:,1:]]])
+testDataDiff = np.concatenate([testDataDiff,[testDataVol[:,1:]]])
 
-dfTrue = loadTrueTestData()    
-inputTrueData = np.array([np.array(dfTrue).astype(np.float64).T[0,-(history_len+train_len+1+mov1):] for i in range(mini_batch_size)])
-inputTrueDataDiffQuot = (inputTrueData[:,1:]-inputTrueData[:,:-1])/inputTrueData[:,:-1]
-minval = np.amin([np.amin(np.abs(inputTrueDataDiffQuot[np.nonzero(inputTrueDataDiffQuot)]))])/10.0
-inputTrueDataDiff = np.array([np.sign(inputTrueDataDiffQuot)*np.nan_to_num(np.log10(np.abs(inputTrueDataDiffQuot/minval)))])
+#dfTrue = loadTrueTestData()    
+#inputTrueData = np.array([np.array(dfTrue).astype(np.float64).T[0,-(history_len+train_len+1+mov1):] for i in range(mini_batch_size)])
+#inputTrueDataDiffQuot = (inputTrueData[:,1:]-inputTrueData[:,:-1])/inputTrueData[:,:-1]
+#minval = np.amin([np.amin(np.abs(inputTrueDataDiffQuot[np.nonzero(inputTrueDataDiffQuot)]))])/10.0
+#inputTrueDataDiff = np.array([np.sign(inputTrueDataDiffQuot)*np.nan_to_num(np.log10(np.abs(inputTrueDataDiffQuot/minval)))])
 
-scaleFactorB=np.amin(np.amin(np.concatenate([inputDataDiff,testDataDiff,inputTrueDataDiff],axis=1),axis=1),axis=1)
-scaleFactorA=scalerangeX/(np.amax(np.amax(np.concatenate([inputDataDiff,testDataDiff,inputTrueDataDiff],axis=1),axis=1),axis=1)-scaleFactorB)
+scaleFactorB=np.amin(np.amin(np.concatenate([inputDataDiff,testDataDiff],axis=1),axis=1),axis=1)
+scaleFactorA=scalerangeX/(np.amax(np.amax(np.concatenate([inputDataDiff,testDataDiff],axis=1),axis=1),axis=1)-scaleFactorB)
 #print np.average([np.average(inputDataDiff),np.average(testDataDiff)]), np.amin([np.amin(inputDataDiff),np.amin(testDataDiff)]), np.amax([np.amax(inputDataDiff),np.amax(testDataDiff)])
 #sys.exit()
 
 if mov1 == 1:
     x_list_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputDataDiff[:,:,-(history_len+train_len+mov1):-mov1]),(1,2,0))
     x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff[:,:,-(history_len+train_len+mov1):-mov1]),(1,2,0))
-    x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff[:,:,-(history_len+train_len+mov1):-mov1]),(1,2,0))
+#    x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff[:,:,-(history_len+train_len+mov1):-mov1]),(1,2,0))
 else:
     x_list_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputDataDiff),(1,2,0))
     x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff),(1,2,0))
-    x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff),(1,2,0))    
+#    x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff),(1,2,0))    
 
 ## build and scale output and test arrays
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):], sshares=0, sdol=sdolinit, bidask=bidaskinit, com=cominit) for inpt in inputData])[1]
@@ -132,7 +136,7 @@ ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-t
 print 'ave yearly test return', (np.average(ideal_test_return)/1.e5)**(365./100*5/7)
 
 ###------ build visualization window and execute training ------###
-wintitle='rnlogqotin1sclCROSSENT,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+wintitle='rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
 win.resize(1575,825)
@@ -375,24 +379,24 @@ def iterate():
     cur_iter+=1
     t5 = clock()
     
-    predTrueTestList=0
-    if cur_iter>=0:
-        ## build and scale output and test arrays
-        buySellListTrue = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):], sshares=0, sdol=sdolinit, bidask=bidaskinit, com=cominit) for inpt in inputTrueData])[1]
-        y_list_true_full = np.zeros([num_training_sets,history_len+train_len])
-        for j,sublist in enumerate(buySellListTrue):
-            mult = 1
-            for i in sublist:
-                y_list_true_full[:,i] = mult
-                mult*=-1
-        ideal_true_return = [strategy.trade(inputTrueData[i,-train_len:],y_list_true_full[i,-train_len:], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1] for i in range(num_training_sets)]
-        print 'ideal true test return', ideal_true_return[0]
-        
-        for i,val in enumerate(np.transpose(x_list_true_train[0:mini_batch_size],(1,0,2))):
-            lstm_net.x_list_add(val, 0.0)
-        predTrueTestList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
-        print 'pred true test return factor', (strategy.trade(inputTrueData[0,-train_len:],predTrueTestList[-train_len:,0,0], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_true_return[0]-1.e5)
-        lstm_net.x_list_clear()
+#    predTrueTestList=0
+#    if cur_iter>=0:
+#        ## build and scale output and test arrays
+#        buySellListTrue = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):], sshares=0, sdol=sdolinit, bidask=bidaskinit, com=cominit) for inpt in inputTrueData])[1]
+#        y_list_true_full = np.zeros([num_training_sets,history_len+train_len])
+#        for j,sublist in enumerate(buySellListTrue):
+#            mult = 1
+#            for i in sublist:
+#                y_list_true_full[:,i] = mult
+#                mult*=-1
+#        ideal_true_return = [strategy.trade(inputTrueData[i,-train_len:],y_list_true_full[i,-train_len:], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1] for i in range(num_training_sets)]
+#        print 'ideal true test return', ideal_true_return[0]
+#        
+#        for i,val in enumerate(np.transpose(x_list_true_train[0:mini_batch_size],(1,0,2))):
+#            lstm_net.x_list_add(val, 0.0)
+#        predTrueTestList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
+#        print 'pred true test return factor', (strategy.trade(inputTrueData[0,-train_len:],predTrueTestList[-train_len:,0,0], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_true_return[0]-1.e5)
+#        lstm_net.x_list_clear()
     
 timer = QtCore.QTimer()
 timer.timeout.connect(iterate)

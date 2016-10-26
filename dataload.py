@@ -38,7 +38,9 @@ def loadData():
         sp500dict[str(stockSymbol)] = stockData
     sp500 = pd.Panel(sp500dict)
     print sp500
-    df = sp500.loc[:,:,'close'].dropna()
+    df = sp500.loc[:,:,['close','volume']].dropna()
+    
+#    print 'df',df.loc[:,:,'volume']
     
     return df
     
@@ -73,5 +75,4 @@ def loadDataTest():
 #    return np.array(df).reshape([len(df),1])
     
 if __name__ == '__main__':
-    dfTrue = loadTrueTestData()
-    print np.array([np.array(dfTrue).astype(np.float64).T[0,-(465):] for i in range(10)])
+    dfTrue = loadData()
