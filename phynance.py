@@ -5,6 +5,7 @@ import cPickle as pickle
 import sys
 import pyqtgraph as pg 
 from pyqtgraph.Qt import QtGui, QtCore
+from copy import copy
 
 from dataload import loadData, loadTrueTestData
 import lstm
@@ -52,7 +53,7 @@ dropout_rate = 0.0
 mem_cells = [50,50,50]
 
 sdolinit = 1.0e5
-bidaskinit = 0.02
+bidaskinit = 0.005
 cominit = 9.99
 
 ###------ build and scale input and output arrays ------###
@@ -114,6 +115,17 @@ for j,sublist in enumerate(buySellList):
 #        if val==0:
 #            y_list_full[i,j]=y_list_full[i,j-1]
 ideal_return = [strategy.trade(inputData[i,-train_len:],y_list_full[i,-train_len:], sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1] for i in range(num_training_sets)]
+
+print inputData[0,-train_len:]
+print y_list_full[0,-train_len:]
+t0=clock()
+d1 = strategy.trade_cont_prime(inputData[0,-train_len:], y_list_full[0,-train_len:]*0.7+0.2, 0, sdolinit, 0, 0, 0.01)
+print clock()-t0
+d2 = strategy.trade_cont_prime(inputData[0,-train_len:], y_list_full[0,-train_len:]*0.7+0.2, 0, sdolinit, 0, 0, -0.01)
+print d1
+print d2
+print (d1+d2)
+sys.exit()
 
 scaleFactorBY=-1.0
 scaleFactorAY=scalerangeY/(1.0-scaleFactorBY)

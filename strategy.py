@@ -1,5 +1,5 @@
 import numpy as np
-from numba import autojit
+import numba
 
 #sdolinit = 1.0e5
 #bidaskinit = 0.005
@@ -29,6 +29,7 @@ def ewma_strategy(stock_price, pred_ewma, sdol, bidask, com):
     
     return value
     
+#@numba.jit(nopython=True)    
 def ideal_strategy(stock_price, sshares, sdol, bidask, com):        
     askmul=1.0+bidask/2.0
     bidmul=1.0-bidask/2.0
@@ -96,6 +97,109 @@ def ideal_strategy(stock_price, sshares, sdol, bidask, com):
             buySellList.append(pos1)
     
     return (dollars,buySellList)
+    
+@numba.jit(nopython = True)
+def trade_cont(stock_price, trades, sshares, sdol, bidask, com):
+    dollars=sdol
+    shares=sshares
+    value=np.zeros_like(stock_price)   
+    
+    askmul=1.0+bidask/2.0
+    bidmul=1.0-bidask/2.0
+    
+    for i,sp in enumerate(stock_price):
+        if trades[i]>0 and dollars>=(stock_price[i]*askmul+com):
+            newshares = int((dollars-com)/(stock_price[i]*askmul))
+            newshares = np.round(trades[i]*newshares)
+            newshares = trades[i]*(dollars-com)/(stock_price[i]*askmul)
+            
+            shares += newshares
+            dollars -= newshares*(stock_price[i]*askmul)+com
+        elif trades[i]<0:# and shares>0:
+            soldshares = np.round(-trades[i]*shares)
+            
+            dollars += soldshares*(stock_price[i]*bidmul)-com
+            shares -= soldshares
+        value[i] = dollars+shares*stock_price[i]
+    
+    return value
+
+@numba.jit(nopython = True)    
+def trade_cont_prime(stock_price, trades, sshares, sdol, bidask, com, delta):
+    org = trade_cont(stock_price, trades, sshares, sdol, bidask, com)[-1]
+    drv = np.zeros_like(trades)  
+    temptrades = np.zeros_like(trades)
+    for i,val in enumerate(trades):
+        temptrades[i] = val
+    
+    for i,val in enumerate(trades):
+        temptrades[i] += delta
+        drv[i] = (trade_cont(stock_price, temptrades, sshares, sdol, bidask, com)[-1] - org) / abs(delta)
+        temptrades[i] -= delta
+    
+    return drv
+
+@numba.jit(nopython=True)        
+def buysellVal(stock_price, sval, bidask, com):
+    s_p = np.zeros(len(stock_price)+3)
+    s_p[:-3] = stock_price
+    s_p[-3:] = stock_price[-1]
+    
+    askmul=1.0+bidask/2.0
+    bidmul=1.0-bidask/2.0
+    
+    outar=np.zeros((len(s_p)-3,2))
+    
+#    buyval=np.zeros(len(s_p)-3)
+    for i in range(len(s_p)-3):
+        shares=int((sval-com)/(s_p[i]*askmul))
+        dollars=sval-shares*(s_p[i]*askmul)-com
+        outar[i,0] = ideal_strategy(s_p[i+1:], sdol=dollars, sshares=shares, bidask=bidask, com=com) / ideal_strategy(s_p[i:], sdol=sval, sshares=0, bidask=bidask, com=com)
+        
+#    sellval=np.zeros(len(s_p)-3)
+    for i in range(len(s_p)-3):
+        shares=int((sval)/(s_p[i]*bidmul))
+        dollars=sval-shares*(s_p[i]*bidmul)
+        outar[i,1] = ideal_strategy(s_p[i+1:], sdol=sval-com, sshares=0, bidask=bidask, com=com) / ideal_strategy(s_p[i:], sdol=dollars, sshares=shares, bidask=bidask, com=com)
+    
+#    #remove precision errors
+#    buyval[buyval<1e-12]=0 
+#    sellval[sellval<1e-12]=0 
+#    
+#    #regulate output (bring mean and median closer to max)
+#    buyval=buyval/(20.0*buyval+1.0)
+#    sellval=sellval/(20.0*sellval+1.0)
+        
+    combval=np.zeros(len(s_p)-3)
+    for i,val in enumerate(outar[:,0]):
+        if val==1.:
+            combval[i] = 1./outar[i,1]
+        elif outar[i,1]==1.:
+            combval[i] = val
+        else:
+            combval[i] = 1.0
+    return combval
+#    return outar
+        
+def trade_val(stock_price, trades, sdol, bidask, com):
+    dollars=sdol
+    shares=0
+    value=list()   
+    
+    askmul=1.0+bidask/2.0
+    bidmul=1.0-bidask/2.0
+    
+    for i,sp in enumerate(stock_price):
+        if trades[i]>1.0 and dollars>=(stock_price[i]*askmul+com):
+            newshares=int((dollars-com)/(stock_price[i]*askmul))
+            shares+=newshares
+            dollars-=newshares*(stock_price[i]*askmul)+com
+        elif trades[i]<1.0 and shares>0:
+            dollars+=shares*(stock_price[i]*bidmul)-com
+            shares=0
+        value.append(dollars+shares*stock_price[i]*bidmul-np.sign(shares)*com)
+    
+    return value
     
 def ideal_strategyOrg(stock_price, sdol, bidask, com):
     shifts=np.diff(np.array(np.diff(stock_price[:])>0,dtype=int))
