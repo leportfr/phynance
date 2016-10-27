@@ -80,8 +80,8 @@ def loss_func(pred, label):
 #    return -(label*np.log(pred) + (1-label)*np.log(1-pred))
 
 def bottom_diff(pred, label):
-#    return 2 * (pred - label)
-    return pred - label    
+    return 2 * (pred - label)
+#    return pred - label    
 
 def movingaverage(values, window):
 #    weights = np.repeat(1.0, window)/window

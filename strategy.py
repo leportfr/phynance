@@ -104,40 +104,104 @@ def trade_cont(stock_price, trades, sshares, sdol, bidask, com):
     shares=sshares
     value=np.zeros_like(stock_price)   
     
-    askmul=1.0+bidask/2.0
-    bidmul=1.0-bidask/2.0
+    askmul = 1.0+bidask/2.0
+    bidmul = 1.0-bidask/2.0
     
     for i,sp in enumerate(stock_price):
-        if trades[i]>0 and dollars>=(stock_price[i]*askmul+com):
+        tr = trades[i]
+        if np.abs(tr) > 1.0:
+            tr = tr/np.abs(tr)
+        
+        if tr>0 and dollars>=(stock_price[i]*askmul+com):
             newshares = int((dollars-com)/(stock_price[i]*askmul))
-            newshares = np.round(trades[i]*newshares)
-            newshares = trades[i]*(dollars-com)/(stock_price[i]*askmul)
+            newshares = np.round(tr*newshares)
+#            print 'newshares', newshares
             
             shares += newshares
             dollars -= newshares*(stock_price[i]*askmul)+com
-        elif trades[i]<0:# and shares>0:
-            soldshares = np.round(-trades[i]*shares)
+        elif tr<0 and shares>0:
+            soldshares = np.round(-tr*shares)
+#            print 'soldshares', soldshares
             
             dollars += soldshares*(stock_price[i]*bidmul)-com
             shares -= soldshares
-        value[i] = dollars+shares*stock_price[i]
+        value[i] = dollars + shares*stock_price[i]*bidmul
     
     return value
-
+    
 @numba.jit(nopython = True)    
-def trade_cont_prime(stock_price, trades, sshares, sdol, bidask, com, delta):
-    org = trade_cont(stock_price, trades, sshares, sdol, bidask, com)[-1]
-    drv = np.zeros_like(trades)  
-    temptrades = np.zeros_like(trades)
+def trade_cont_prime(stock_price, trades, sdol, bidask, com, delta):
+    drv = np.zeros_like(trades)
+    
+    s_p = np.zeros(len(stock_price)+1)
+    s_p[:-1] = stock_price
+    s_p[-1] = stock_price[-1]
+        
+    temptrades = np.zeros(len(trades)+1)
+    temptrades2 = np.zeros(len(trades)+1)
     for i,val in enumerate(trades):
         temptrades[i] = val
+        temptrades2[i] = val
+    temptrades[-1] = trades[-1]
+    temptrades2[-1] = trades[-1]
+    
+    temptrades[np.abs(temptrades)>1.0] = temptrades[np.abs(temptrades)>1.0]/np.abs(temptrades[np.abs(temptrades)>1.0])
+    temptrades2[np.abs(temptrades2)>1.0] = temptrades2[np.abs(temptrades2)>1.0]/np.abs(temptrades2[np.abs(temptrades2)>1.0])
     
     for i,val in enumerate(trades):
-        temptrades[i] += delta
-        drv[i] = (trade_cont(stock_price, temptrades, sshares, sdol, bidask, com)[-1] - org) / abs(delta)
-        temptrades[i] -= delta
+        shares = int(sdol/stock_price[i])        
+        
+        if trades[i] < 1.0-delta:
+            temptrades[i] += delta
+        if trades[i] > -1.0+delta:
+            temptrades2[i] -= delta
+            
+        trd1 = trade_cont(s_p[i:], temptrades[i:], shares, sdol, bidask, com)[-1]
+        trd2 = trade_cont(s_p[i:], temptrades2[i:], shares, sdol, bidask, com)[-1]
+        drv[i] = (trd1 - trd2) / (2*abs(delta))
+        
+        if trades[i] > 1.0 and drv[i] > 0.0:
+            drv[i] = 0.0
+        if trades[i] < -1.0 and drv[i] < 0.0:
+            drv[i] = 0.0
+        
+        if trades[i] < 1.0-delta:
+            temptrades[i] -= delta
+        if trades[i] > -1.0+delta:
+            temptrades2[i] += delta
     
-    return drv
+    return drv/sdol
+
+#@numba.jit(nopython = True)    
+#def trade_cont_prime(stock_price, trades, sdol, bidask, com, delta):
+##    org = trade_cont(stock_price, trades, sshares, sdol, bidask, com)[-1]
+#    drv = np.zeros_like(trades)
+#    dollars = sdol
+#    shares = 0
+#    
+#    if trades[0]<0:
+#        bidmul = 1.0 - bidask/2.0
+#        newshares = int(dollars/(stock_price[0]*bidmul))
+#        
+#        shares += newshares
+#        dollars -= newshares*(stock_price[0]*bidmul) 
+#        
+#    temptrades = np.zeros_like(trades)
+#    temptrades2 = np.zeros_like(trades)
+#    for i,val in enumerate(trades):
+#        temptrades[i] = val
+#        temptrades2[i] = val
+#    
+#    for i,val in enumerate(trades):
+#        temptrades[i] += delta
+#        temptrades2[i] -= delta
+#        trd1 = trade_cont(stock_price, temptrades, shares, sdol, bidask, com)[-1]
+#        trd2 = trade_cont(stock_price, temptrades2, shares, sdol, bidask, com)[-1]
+#        drv[i] = (trd1 - trd2) / (2*delta)
+#        temptrades[i] -= delta
+#        temptrades2[i] += delta
+#    
+#    return drv/sdol
 
 @numba.jit(nopython=True)        
 def buysellVal(stock_price, sval, bidask, com):
