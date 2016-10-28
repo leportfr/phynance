@@ -346,10 +346,10 @@ class LstmNetwork():
         if idx == 0:
 #            print 'idx', idx
             # no recurrent inputs yet
-            self.lstm_node_list[idx][0].bottom_data_is(x, np.zeros_like(self.lstm_node_list[idx][0].state.s), np.zeros_like(self.lstm_node_list[idx][0].state.h), None)
+            self.lstm_node_list[idx][0].bottom_data_is(x, np.zeros_like(self.lstm_node_list[idx][0].state.s), np.zeros_like(self.lstm_node_list[idx][0].state.h), dropout_list[0])
             for lyr in range(self.num_layers-3):
                 self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, np.zeros_like(self.lstm_node_list[idx][lyr+1].state.s),
-                                                               np.zeros_like(self.lstm_node_list[idx][lyr+1].state.h), dropout_list[lyr])
+                                                               np.zeros_like(self.lstm_node_list[idx][lyr+1].state.h), dropout_list[lyr+1])
             self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h, dropout_list[-1])
         else:
 #            print 'idx', idx
@@ -359,9 +359,9 @@ class LstmNetwork():
                 s_prevs.append(self.lstm_node_list[idx - 1][lyr].state.s)
                 h_prevs.append(self.lstm_node_list[idx - 1][lyr].state.h)
 #            print x, s_prevs[0], h_prevs[0]
-            self.lstm_node_list[idx][0].bottom_data_is(x, s_prevs[0], h_prevs[0], None)
+            self.lstm_node_list[idx][0].bottom_data_is(x, s_prevs[0], h_prevs[0], dropout_list[0])
             for lyr in range(self.num_layers-3):
-                self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, s_prevs[lyr+1], h_prevs[lyr+1], dropout_list[lyr])
+                self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, s_prevs[lyr+1], h_prevs[lyr+1], dropout_list[lyr+1])
             self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h, dropout_list[-1])
             
     def getOutData(self):

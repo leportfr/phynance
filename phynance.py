@@ -33,7 +33,7 @@ datasize = df.shape[1]
 history_len = 365
 train_len = 100
 
-fsf = 0
+fsf = 6
 num_training_sets = (7-fsf)*342
 mini_batch_size = 57
 random_batch = 1
@@ -307,11 +307,14 @@ def iterate():
         train_set = train_set_list[cur_iter%(num_training_sets/mini_batch_size)]    
         
     #generate dropout lists
-    dropout_list = list()
+    dropout_list = [[1]*x_dim]
+    dropout_list_test = [[1]*x_dim]
     for i in range(len(layer_dims)-2):
         dropout_list.append([0]*int(mem_cells[i]*dropout_rate))
         dropout_list[-1] += [1]*(mem_cells[i]-len(dropout_list[-1]))
         np.random.shuffle(dropout_list[-1])
+        
+        dropout_list_test.append([1]*mem_cells[i])
     
     #forward propagate the network
     t1 = clock()
@@ -365,7 +368,7 @@ def iterate():
         predTestList = []
         for i in range(num_test_sets/mini_batch_size):
             for val in np.transpose(x_list_test[i:i+mini_batch_size],(1,0,2)):
-                lstm_net.x_list_add(val, 0.0)#*(((np.random.rand(mini_batch_size)+.5)/50.0).reshape((100,1))), 0.0)
+                lstm_net.x_list_add(val, dropout_list_test)#*(((np.random.rand(mini_batch_size)+.5)/50.0).reshape((100,1))), 0.0)
             predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()))
             [test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,j,0],ytest_list_full[test_set,-train_len:]))) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
 #            if i==0:
