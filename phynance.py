@@ -33,7 +33,8 @@ datasize = df.shape[1]
 history_len = 365
 train_len = 100
 
-num_training_sets = 2394
+fsf = 0
+num_training_sets = (7-fsf)*342
 mini_batch_size = 57
 random_batch = 1
 num_test_sets = 342
@@ -48,7 +49,7 @@ test_limit = datasize
 init_learn_rate = 1.e-3
 ema_factor = 0.9#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
-dropout_rate = 0.1
+dropout_rate = 0.3
 mem_cells = [50,50,50]
 
 sdolinit = 1.0e5
@@ -65,14 +66,17 @@ lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_fac
 np.random.seed(85)
 ## build and scale input and test arrays
 mov1 = 0
-inputData = np.array([np.array(df.loc[:,:,'close']).T[int(i/7),(i%7)*(history_len+train_len+1):(i%7+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
-testData = np.array([np.array(df.loc[:,:,'close']).T[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
+dfarrayclose = np.array(df.loc[:,:,'close']).T
+dfarrayvol = np.array(df.loc[:,:,'volume']).T
+inputData = np.array([dfarrayclose[int(i/(7-fsf)),(fsf+i%(7-fsf))*(history_len+train_len+1):(fsf+i%(7-fsf)+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
+testData = np.array([dfarrayclose[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
 #inputData = np.array([np.array(df.loc[:,:,'close']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
 #testData = np.array([np.array(df.loc[:,:,'close']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 #testData = np.array([np.array(df.loc[:,:,'close']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]])
-inputDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
-#inputDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+inputDataVol = np.array([dfarrayvol[int(i/7),(i%7)*(history_len+train_len+1):(i%7+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
+testDataVol = np.array([dfarrayvol[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])#inputDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+inputDataVol[inputDataVol == 0] = np.amin(inputDataVol[inputDataVol.nonzero()])
+testDataVol[testDataVol == 0] = np.amin(testDataVol[testDataVol.nonzero()])
 #testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 #testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]])
 
@@ -81,8 +85,8 @@ testDataDiffQuot = (testData[:,1:]-testData[:,:-1])/testData[:,:-1]
 minval = np.amin([np.amin(np.abs(inputDataDiffQuot[np.nonzero(inputDataDiffQuot)])),np.amin(np.abs(testDataDiffQuot[np.nonzero(testDataDiffQuot)]))])/10.0
 inputDataDiff = np.array([np.sign(inputDataDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataDiffQuot/minval)))])
 testDataDiff = np.array([np.sign(testDataDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataDiffQuot/minval)))])
-inputDataDiff = np.concatenate([inputDataDiff,[inputDataVol[:,1:]]])
-testDataDiff = np.concatenate([testDataDiff,[testDataVol[:,1:]]])
+inputDataDiff = np.concatenate([inputDataDiff,[np.log(inputDataVol[:,1:])]])
+testDataDiff = np.concatenate([testDataDiff,[np.log(testDataVol[:,1:])]])
 
 #dfTrue = loadTrueTestData()    
 #inputTrueData = np.array([np.array(dfTrue).astype(np.float64).T[0,-(history_len+train_len+1+mov1):] for i in range(mini_batch_size)])
@@ -290,9 +294,10 @@ train_set_list = np.arange(num_training_sets).reshape(num_training_sets/mini_bat
 stats_graph_factor = 10
 test_graph_factor = 10
 def iterate():
-    global cur_iter, t5, predTestList, train_set_list#, lf, loss_list_ema
-    if random_batch:
-#        train_set = np.random.randint(num_training_sets) 
+    global cur_iter, t5, predTestList, train_set_list
+    
+    #generate minibatches
+    if random_batch: 
         if cur_iter % (num_training_sets/mini_batch_size) == 0:
             train_set_list = np.arange(num_training_sets)
             np.random.shuffle(train_set_list)
@@ -300,17 +305,26 @@ def iterate():
         train_set = train_set_list[cur_iter%(num_training_sets/mini_batch_size)]
     else:
         train_set = train_set_list[cur_iter%(num_training_sets/mini_batch_size)]    
+        
+    #generate dropout lists
+    dropout_list = list()
+    for i in range(len(layer_dims)-2):
+        dropout_list.append([0]*int(mem_cells[i]*dropout_rate))
+        dropout_list[-1] += [1]*(mem_cells[i]-len(dropout_list[-1]))
+        np.random.shuffle(dropout_list[-1])
     
+    #forward propagate the network
     t1 = clock()
     print '\ncur iter: ', cur_iter, train_set
     print 'iteration time: ', clock() - t5
     for val in np.transpose(x_list_train[train_set],(1,0,2)):
-        lstm_net.x_list_add(val, dropout_rate)
+        lstm_net.x_list_add(val, dropout_list)
     predList = rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData())
     return_list.append(np.average([(strategy.trade_cont(inputData[ts,-train_len:],predList[-train_len:,i,0], 0, sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_return[ts]-1.e5) for i,ts in enumerate(train_set)]))
 #    return_list_ma=[]
     print 'add x_val time: ', clock() - t1  
     
+    #back propagate the network
     t0 = clock()
     drvs = -1.0*np.array([strategy.trade_cont_prime(inputData[ts,-train_len:], predList[-train_len:,i,0], sdolinit*1000.0, bidaskinit, cominit, 0.01) for i,ts in enumerate(train_set)]).T.reshape((train_len, mini_batch_size, 1))  
 #    print np.average(drvs[drvs.nonzero()]), np.median(np.abs(drvs[drvs.nonzero()])), np.max(np.abs(drvs[drvs.nonzero()])), np.min(np.abs(drvs[drvs.nonzero()]))  
@@ -318,6 +332,7 @@ def iterate():
 #    loss_list.append(lstm_net.y_list_is(np.transpose(y_list_train[train_set],(1,0,2)))[0]/scaleFactorAY/scaleFactorAY)
     print 'train time: ', clock() - t0
     
+    #apply weight updates
     t2 = clock()
     if cur_iter % stats_graph_factor == 0:
         grad_listW.append(lstm_net.getGradStatsW())
@@ -333,8 +348,10 @@ def iterate():
         learn_rate_listB.append(lstm_net.getLearnRateStatsB())
     print 'apply time: ', clock() - t2
     
+    #clear network for next iteration
     lstm_net.x_list_clear()
     
+    #update graphs
     t4 = clock()
     curves[0].setData(rescaled_data[train_set[0],:,0])
     curves[1].setData(predList[:,0,0])

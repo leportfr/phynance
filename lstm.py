@@ -180,10 +180,10 @@ class OutNode:
         self.state = out_state
         self.h = None
         
-    def bottom_data_is(self, h, dropout_rate):
-        dropout_list=[0]*int(self.param.in_dim*dropout_rate)
-        dropout_list+=[1]*(self.param.in_dim-len(dropout_list))
-        np.random.shuffle(dropout_list)
+    def bottom_data_is(self, h, dropout_list):
+#        dropout_list=[0]*int(self.param.in_dim*dropout_rate)
+#        dropout_list+=[1]*(self.param.in_dim-len(dropout_list))
+#        np.random.shuffle(dropout_list)
         self.h = h*dropout_list
         
 #        self.state.y = np.tanh(np.dot(self.param.w, self.h.T).T + self.param.b)
@@ -211,14 +211,14 @@ class LstmNode:
 #        self.b_gpu = None
 #        self.c_gpu = None
         
-    def bottom_data_is(self, inpt, s_prev, h_prev, dropout_rate):
+    def bottom_data_is(self, inpt, s_prev, h_prev, dropout_list):
         # save data for use in backprop
         self.s_prev = s_prev       
         
 #        t0=clock()
-        dropout_list=[0]*int(self.param.in_dim*dropout_rate)
-        dropout_list+=[1]*(self.param.in_dim-len(dropout_list))
-        np.random.shuffle(dropout_list)
+#        dropout_list=[0]*int(self.param.in_dim*dropout_rate)
+#        dropout_list+=[1]*(self.param.in_dim-len(dropout_list))
+#        np.random.shuffle(dropout_list)
 #        print 'bott_data_is 0', clock()-t0
         
 #        t0=clock()
@@ -327,7 +327,7 @@ class LstmNetwork():
     def x_list_clear(self):
         self.x_list = []
 
-    def x_list_add(self, x, dropout_rate):
+    def x_list_add(self, x, dropout_list):
         self.x_list.append(x)
         if len(self.x_list) > len(self.lstm_node_list):
             lstm_states=list()
@@ -346,11 +346,11 @@ class LstmNetwork():
         if idx == 0:
 #            print 'idx', idx
             # no recurrent inputs yet
-            self.lstm_node_list[idx][0].bottom_data_is(x, np.zeros_like(self.lstm_node_list[idx][0].state.s), np.zeros_like(self.lstm_node_list[idx][0].state.h), 0.0)
+            self.lstm_node_list[idx][0].bottom_data_is(x, np.zeros_like(self.lstm_node_list[idx][0].state.s), np.zeros_like(self.lstm_node_list[idx][0].state.h), None)
             for lyr in range(self.num_layers-3):
                 self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, np.zeros_like(self.lstm_node_list[idx][lyr+1].state.s),
-                                                               np.zeros_like(self.lstm_node_list[idx][lyr+1].state.h), dropout_rate)
-            self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h, dropout_rate)
+                                                               np.zeros_like(self.lstm_node_list[idx][lyr+1].state.h), dropout_list[lyr])
+            self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h, dropout_list[-1])
         else:
 #            print 'idx', idx
             s_prevs=list()
@@ -359,10 +359,10 @@ class LstmNetwork():
                 s_prevs.append(self.lstm_node_list[idx - 1][lyr].state.s)
                 h_prevs.append(self.lstm_node_list[idx - 1][lyr].state.h)
 #            print x, s_prevs[0], h_prevs[0]
-            self.lstm_node_list[idx][0].bottom_data_is(x, s_prevs[0], h_prevs[0], 0.0)
+            self.lstm_node_list[idx][0].bottom_data_is(x, s_prevs[0], h_prevs[0], None)
             for lyr in range(self.num_layers-3):
-                self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, s_prevs[lyr+1], h_prevs[lyr+1], dropout_rate)
-            self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h, dropout_rate)
+                self.lstm_node_list[idx][lyr+1].bottom_data_is(self.lstm_node_list[idx][lyr].state.h, s_prevs[lyr+1], h_prevs[lyr+1], dropout_list[lyr])
+            self.out_node_list[idx].bottom_data_is(self.lstm_node_list[idx][-1].state.h, dropout_list[-1])
             
     def getOutData(self):
         outData = list()
