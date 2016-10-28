@@ -27,7 +27,7 @@ def loadData():
     #locate data files
     curdir = os.path.dirname(__file__)
     datadir = os.path.join(curdir, 'Data/quantquote_daily_sp500_83986/daily')
-    filelist = os.listdir(datadir)[1:2]
+    filelist = os.listdir(datadir)[:]
     
     #load stock data
     sp500dict = {}
@@ -75,4 +75,5 @@ def loadDataTest():
 #    return np.array(df).reshape([len(df),1])
     
 if __name__ == '__main__':
-    dfTrue = loadData()
+    df = loadData()
+    print np.array(df.loc[:,:,'close']).shape

@@ -33,10 +33,10 @@ datasize = df.shape[1]
 history_len = 365
 train_len = 100
 
-num_training_sets = 100
-mini_batch_size = 100
+num_training_sets = 2394
+mini_batch_size = 57
 random_batch = 1
-num_test_sets = 100
+num_test_sets = 342
 
 assert(num_training_sets%mini_batch_size == 0)
 assert(num_test_sets%mini_batch_size == 0)
@@ -45,11 +45,10 @@ test_train_cutoff = 2500
 test_limit = datasize
 
 ### set RNN parameters ###
-init_learn_rate = 1.e-4
-learn_factor = 0.01
-ema_factor = 0.5#(1.-1./num_training_sets*mini_batch_size)
+init_learn_rate = 1.e-3
+ema_factor = 0.9#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
-dropout_rate = 0.0
+dropout_rate = 0.1
 mem_cells = [50,50,50]
 
 sdolinit = 1.0e5
@@ -66,12 +65,15 @@ lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_fac
 np.random.seed(85)
 ## build and scale input and test arrays
 mov1 = 0
-inputData = np.array([np.array(df.loc[:,:,'close']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testData = np.array([np.array(df.loc[:,:,'close']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+inputData = np.array([np.array(df.loc[:,:,'close']).T[int(i/7),(i%7)*(history_len+train_len+1):(i%7+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
+testData = np.array([np.array(df.loc[:,:,'close']).T[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
+#inputData = np.array([np.array(df.loc[:,:,'close']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+#testData = np.array([np.array(df.loc[:,:,'close']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 #testData = np.array([np.array(df.loc[:,:,'close']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]])
-
 inputDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
 testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+#inputDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+#testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 #testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]])
 
 inputDataDiffQuot = (inputData[:,1:]-inputData[:,:-1])/inputData[:,:-1]
@@ -146,7 +148,7 @@ ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-t
 print 'ave yearly test return', (np.average(ideal_test_return)/1.e5)**(365./100*5/7)
 
 ###------ build visualization window and execute training ------###
-wintitle='rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+','+str(learn_factor)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+wintitle='rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
 win.resize(1575,825)
@@ -239,7 +241,7 @@ for i in range(len(layer_dims)-1):
 win.nextRow()
 
 for i in range(len(layer_dims)-1):
-    plots.append(win.addPlot(title='learning rate stats layer W'+str(i+1)))
+    plots.append(win.addPlot(title='delta stats layer W'+str(i+1)))
     plots[-1].showGrid(x=False, y=True)
     plots[-1].setLogMode(x=False, y=True)
     curves.append(plots[-1].plot(pen='g')) #min
@@ -251,7 +253,7 @@ for i in range(len(layer_dims)-1):
     curves.append(plots[-1].plot(pen='g')) #max 
 
 for i in range(len(layer_dims)-1):
-    plots.append(win.addPlot(title='learning rate stats layer B'+str(i+1)))
+    plots.append(win.addPlot(title='delta stats layer B'+str(i+1)))
     plots[-1].showGrid(x=False, y=True)
     plots[-1].setLogMode(x=False, y=True)
     curves.append(plots[-1].plot(pen='g')) #min
@@ -291,7 +293,7 @@ def iterate():
     global cur_iter, t5, predTestList, train_set_list#, lf, loss_list_ema
     if random_batch:
 #        train_set = np.random.randint(num_training_sets) 
-        if cur_iter%num_training_sets/mini_batch_size == 0:
+        if cur_iter % (num_training_sets/mini_batch_size) == 0:
             train_set_list = np.arange(num_training_sets)
             np.random.shuffle(train_set_list)
             train_set_list=train_set_list.reshape(num_training_sets/mini_batch_size,mini_batch_size)
@@ -300,7 +302,7 @@ def iterate():
         train_set = train_set_list[cur_iter%(num_training_sets/mini_batch_size)]    
     
     t1 = clock()
-    print '\ncur iter: ', cur_iter#, train_set
+    print '\ncur iter: ', cur_iter, train_set
     print 'iteration time: ', clock() - t5
     for val in np.transpose(x_list_train[train_set],(1,0,2)):
         lstm_net.x_list_add(val, dropout_rate)
@@ -311,7 +313,7 @@ def iterate():
     
     t0 = clock()
     drvs = -1.0*np.array([strategy.trade_cont_prime(inputData[ts,-train_len:], predList[-train_len:,i,0], sdolinit*1000.0, bidaskinit, cominit, 0.01) for i,ts in enumerate(train_set)]).T.reshape((train_len, mini_batch_size, 1))  
-    print np.average(drvs[drvs.nonzero()]), np.median(np.abs(drvs[drvs.nonzero()])), np.max(np.abs(drvs[drvs.nonzero()])), np.min(np.abs(drvs[drvs.nonzero()]))  
+#    print np.average(drvs[drvs.nonzero()]), np.median(np.abs(drvs[drvs.nonzero()])), np.max(np.abs(drvs[drvs.nonzero()])), np.min(np.abs(drvs[drvs.nonzero()]))  
     lstm_net.y_list_is(drvs)
 #    loss_list.append(lstm_net.y_list_is(np.transpose(y_list_train[train_set],(1,0,2)))[0]/scaleFactorAY/scaleFactorAY)
     print 'train time: ', clock() - t0
@@ -322,7 +324,7 @@ def iterate():
         grad_listB.append(lstm_net.getGradStatsB())
     
     for lyr,lstm_param in enumerate(lstm_net.lstm_params):
-        lstm_param.apply_diff(l2=l2_factor, lr=learn_factor*mini_batch_size/num_training_sets)
+        lstm_param.apply_diff(l2=l2_factor)
     
     if cur_iter % stats_graph_factor == 0:
         weight_listW.append(lstm_net.getWeightStatsW())
@@ -349,11 +351,11 @@ def iterate():
                 lstm_net.x_list_add(val, 0.0)#*(((np.random.rand(mini_batch_size)+.5)/50.0).reshape((100,1))), 0.0)
             predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()))
             [test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,j,0],ytest_list_full[test_set,-train_len:]))) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
-            if i==0:
-                next_test_return.append((strategy.trade_cont(testData[0,-train_len:],predTestList[-1][-train_len:,0,0], 0, sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[0]-1.e5))
-                [test_return_list.append((strategy.trade_cont(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0], 0, sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
-            else:
-                [test_return_list.append((strategy.trade_cont(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0], 0, sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
+#            if i==0:
+#                next_test_return.append((strategy.trade_cont(testData[0,-train_len:],predTestList[-1][-train_len:,0,0], 0, sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[0]-1.e5))
+#                [test_return_list.append((strategy.trade_cont(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0], 0, sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
+#            else:
+            [test_return_list.append((strategy.trade_cont(testData[test_set,-train_len:],predTestList[-1][-train_len:,j,0], 0, sdol=sdolinit, bidask=bidaskinit, com=cominit)[-1]-1.e5)/(ideal_test_return[test_set]-1.e5)) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]
             lstm_net.x_list_clear()
         test_loss_list_ma.append(np.average(test_loss_list))
         print 'test time: ', clock() - t3
@@ -369,7 +371,7 @@ def iterate():
         test_return_plot_list.append([np.amin(test_return_list),ave-std,ave,ave+std,np.amax(test_return_list)])
         for i in range(5):
             curves[9+i].setData(np.arange(len(test_return_plot_list))*test_graph_factor,np.array(test_return_plot_list)[:,i])
-        curves[14].setData(np.arange(len(test_return_plot_list))*test_graph_factor,next_test_return)
+#        curves[14].setData(np.arange(len(test_return_plot_list))*test_graph_factor,next_test_return)
         
     if cur_iter % stats_graph_factor == 0:
         for i in range(len(layer_dims)-1):

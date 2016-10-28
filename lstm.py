@@ -26,50 +26,36 @@ class OutParam:
         # diffs (derivative of loss function w.r.t. all parameters)
         self.w_diff = np.zeros((out_dim, in_dim))
         self.b_diff = np.zeros(out_dim)
-        # emas of diffs
-        self.w_diff_ema = np.zeros((out_dim, in_dim))
-        self.b_diff_ema = np.zeros(out_dim)
+        # emas of diffs        
+        self.delta_w = np.zeros_like(self.w)
+        self.delta_b = np.zeros_like(self.b)
+        self.w_delta_ema2 = np.zeros_like(self.delta_w) + learn_rate
+        self.b_delta_ema2 = np.zeros_like(self.delta_b) + learn_rate
         
         self.w_diff_ema2 = np.zeros((out_dim, in_dim))# + learn_rate
         self.b_diff_ema2 = np.zeros(out_dim)# + learn_rate
-        
-        self.w_diff_deque = deque([np.zeros_like(self.w)]*(trainMBratio))
-        self.b_diff_deque = deque([np.zeros_like(self.b)]*(trainMBratio))
         #learning rates
         self.w_lr = np.zeros((out_dim, in_dim)) + learn_rate
         self.b_lr = np.zeros(out_dim) + learn_rate
         
-    def apply_diff(self, l2, lr):
-#        w_diff_sum = self.w_diff#np.sum(self.w_diff, axis=0)
-#        b_diff_sum = self.b_diff#np.sum(self.b_diff, axis=0)          
-        
-#        self.w_diff_deque.appendleft(copy(w_diff_sum))
-#        self.b_diff_deque.appendleft(copy(b_diff_sum)) 
-#        w_diff_ma = np.average(self.w_diff_deque, axis=0)
-#        b_diff_ma = np.average(self.b_diff_deque, axis=0)
-#        w_diff_ma =self.w_diff_deque.pop()
-#        b_diff_ma =self.b_diff_deque.pop()
-        #update ema2s
+    def apply_diff(self, l2):
+        #update diff ema2s
         self.w_diff_ema2 *= self.ema_rate
         self.w_diff_ema2 += (1. - self.ema_rate) * self.w_diff * self.w_diff + 1.e-12
         self.b_diff_ema2 *= self.ema_rate
         self.b_diff_ema2 += (1. - self.ema_rate) * self.b_diff * self.b_diff + 1.e-12
-        #update learn rates   
-        self.w_lr *= np.clip(1.0 + lr * self.w_diff * self.w_diff_ema / self.w_diff_ema2, 0.5, 2.0)
-#        self.w_lr *=  (w_diff_sum * self.w_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
-        np.clip(self.w_lr, LRMIN, LRMAX, out=self.w_lr)
-        self.b_lr *= np.clip(1.0 + lr * self.b_diff * self.b_diff_ema / self.b_diff_ema2, 0.5, 2.0)
-#        self.b_lr *= (b_diff_sum * self.b_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
-        np.clip(self.b_lr, LRMIN, LRMAX, out=self.b_lr)  
-        #update emas
-        self.w_diff_ema *= self.ema_rate
-        self.w_diff_ema += (1. - self.ema_rate) * self.w_diff
-        self.b_diff_ema *= self.ema_rate
-        self.b_diff_ema += (1. - self.ema_rate) * self.b_diff
-        #update weights      
-        self.w *= (1. - self.w_lr*l2)
-        self.w -= self.w_lr * self.w_diff
-        self.b -= self.b_lr * self.b_diff 
+        #calculate deltas 
+        self.delta_w = -1.0 * np.sqrt(self.w_delta_ema2) / np.sqrt(self.w_diff_ema2) * self.w_diff       
+        self.delta_b = -1.0 * np.sqrt(self.b_delta_ema2) / np.sqrt(self.b_diff_ema2) * self.b_diff
+        #update delta ema2s
+        self.w_delta_ema2 *= self.ema_rate
+        self.w_delta_ema2 += (1. - self.ema_rate) * self.delta_w * self.delta_w
+        self.b_delta_ema2 *= self.ema_rate
+        self.b_delta_ema2 += (1. - self.ema_rate) * self.delta_b * self.delta_b
+        #update weights
+        self.w *= (1. - l2)
+        self.w += self.delta_w
+        self.b += self.delta_b
         #reset diffs
         self.w_diff = np.zeros_like(self.w_diff) 
         self.b_diff = np.zeros_like(self.b_diff)
@@ -89,10 +75,10 @@ class OutParam:
         arr = np.abs(self.b_diff)
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]   
     def getLearnRateStatsW(self):
-        arr = self.w_lr
+        arr = np.abs(self.delta_w)#self.w_lr
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
     def getLearnRateStatsB(self):        
-        arr = self.b_lr
+        arr = np.abs(self.delta_b)#self.b_lr
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
 
         
@@ -117,51 +103,37 @@ class LstmParam:
         # temp_diffs
         self.d_input = np.zeros((mb_size, 4*out_dim))
         # emas of diffs
-        self.w_diff_ema = np.zeros((4*out_dim, in_dim+out_dim)) 
-        self.b_diff_ema = np.zeros(4*out_dim) 
+        self.delta_w = np.zeros_like(self.w)
+        self.delta_b = np.zeros_like(self.b)
+        self.w_delta_ema2 = np.zeros_like(self.delta_w) + learn_rate
+        self.b_delta_ema2 = np.zeros_like(self.delta_b) + learn_rate
         
         self.w_diff_ema2 = np.zeros((4*out_dim, in_dim+out_dim))# + learn_rate
         self.b_diff_ema2 = np.zeros(4*out_dim)# + learn_rate 
-        
-        self.w_diff_deque = deque([np.zeros_like(self.w)]*(trainMBratio))
-        self.b_diff_deque = deque([np.zeros_like(self.b)]*(trainMBratio))
         # learning rates
         self.w_lr = np.zeros((4*out_dim, in_dim+out_dim)) + learn_rate# * out_dim
         self.b_lr = np.zeros(4*out_dim) + learn_rate# * out_dim
-
-    def apply_diff(self, l2, lr):
-#        w_diff_sum = self.w_diff#np.sum(self.w_diff, axis=0)
-#        b_diff_sum = self.b_diff#np.sum(self.b_diff, axis=0)            
         
-#        self.w_diff_deque.appendleft(copy(w_diff_sum))
-#        self.b_diff_deque.appendleft(copy(b_diff_sum)) 
-#        w_diff_ma = np.average(self.w_diff_deque, axis=0)
-#        b_diff_ma = np.average(self.b_diff_deque, axis=0)
-#        w_diff_prev = self.w_diff_deque.pop()
-#        b_diff_prev = self.b_diff_deque.pop()
-        #update ema2s
+    def apply_diff(self, l2):
+        #update diff ema2s
         self.w_diff_ema2 *= self.ema_rate
         self.w_diff_ema2 += (1. - self.ema_rate) * self.w_diff * self.w_diff + 1.e-12
         self.b_diff_ema2 *= self.ema_rate
-        self.b_diff_ema2 += (1. - self.ema_rate) * self.b_diff * self.b_diff + 1.e-12   
-        #update learn rates        
-        self.w_lr *= np.clip(1.0 + lr * self.w_diff * self.w_diff_ema / self.w_diff_ema2, 0.5, 2.0)
-#        self.w_lr *= (w_diff_sum * self.w_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
-        np.clip(self.w_lr, LRMIN, LRMAX, out=self.w_lr)
-        self.b_lr *= np.clip(1.0 + lr * self.b_diff * self.b_diff_ema / self.b_diff_ema2, 0.5, 2.0)
-#        self.b_lr *=  (b_diff_sum * self.b_diff_deque.pop() > 0).astype(int)*(lr-1/lr)+1/lr
-        np.clip(self.b_lr, LRMIN, LRMAX, out=self.b_lr)
-        #update emas
-        self.w_diff_ema *= self.ema_rate
-        self.w_diff_ema += (1. - self.ema_rate) * self.w_diff
-        self.b_diff_ema *= self.ema_rate
-        self.b_diff_ema += (1. - self.ema_rate) * self.b_diff
+        self.b_diff_ema2 += (1. - self.ema_rate) * self.b_diff * self.b_diff + 1.e-12
+        #calculate deltas 
+        self.delta_w = -1.0 * np.sqrt(self.w_delta_ema2) / np.sqrt(self.w_diff_ema2) * self.w_diff       
+        self.delta_b = -1.0 * np.sqrt(self.b_delta_ema2) / np.sqrt(self.b_diff_ema2) * self.b_diff  
+        #update delta ema2s
+        self.w_delta_ema2 *= self.ema_rate
+        self.w_delta_ema2 += (1. - self.ema_rate) * self.delta_w * self.delta_w
+        self.b_delta_ema2 *= self.ema_rate
+        self.b_delta_ema2 += (1. - self.ema_rate) * self.delta_b * self.delta_b
         #update weights
-        self.w *= (1. - self.w_lr*l2) 
-        self.w -= self.w_lr * self.w_diff
-        self.b -= self.b_lr * self.b_diff
+        self.w *= (1. - l2)
+        self.w += self.delta_w
+        self.b += self.delta_b
         #reset diffs
-        self.w_diff = np.zeros_like(self.w_diff)
+        self.w_diff = np.zeros_like(self.w_diff) 
         self.b_diff = np.zeros_like(self.b_diff)
         
     def getParams(self):
@@ -179,10 +151,10 @@ class LstmParam:
         arr = np.abs(self.b_diff)
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
     def getLearnRateStatsW(self):
-        arr = self.w_lr
+        arr = np.abs(self.delta_w)#self.w_lr
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]        
     def getLearnRateStatsB(self):
-        arr = self.b_lr
+        arr = np.abs(self.delta_b)#self.b_lr
         return [np.amin(arr),np.percentile(arr,10),np.percentile(arr,25),np.percentile(arr,50),np.percentile(arr,75),np.percentile(arr,90),np.amax(arr)]
         
 class OutState:
