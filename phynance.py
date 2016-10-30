@@ -49,8 +49,8 @@ test_limit = datasize
 init_learn_rate = 1.e-3
 ema_factor = 0.9#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
-dropout_rate = 0.3
-mem_cells = [50,50,50]
+dropout_rate = 0.1
+mem_cells = [100,100,100]
 
 sdolinit = 1.0e5
 bidaskinit = 0.005
@@ -291,8 +291,8 @@ predTestList = list()
 cur_iter=0
 t5=0
 train_set_list = np.arange(num_training_sets).reshape(num_training_sets/mini_batch_size,mini_batch_size)
-stats_graph_factor = 10
-test_graph_factor = 10
+stats_graph_factor = 20
+test_graph_factor = 20
 def iterate():
     global cur_iter, t5, predTestList, train_set_list
     
