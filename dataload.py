@@ -27,7 +27,7 @@ def loadData():
     #locate data files
     curdir = os.path.dirname(__file__)
     datadir = os.path.join(curdir, 'Data/quantquote_daily_sp500_83986/daily')
-    filelist = os.listdir(datadir)[:]
+    filelist = os.listdir(datadir)[1:2]
     
     #load stock data
     sp500dict = {}
