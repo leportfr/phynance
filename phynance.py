@@ -7,7 +7,7 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
 from copy import copy
 
-from dataload import loadData, loadTrueTestData
+from dataload import loadData, loadTrueTestData, loadDataTest
 import lstm
 
 scalerangeX=10
@@ -33,11 +33,16 @@ datasize = df.shape[1]
 history_len = 365
 train_len = 100
 
-fsf = 6
+fsf = 4
 num_training_sets = (7-fsf)*342
 mini_batch_size = 57
 random_batch = 1
 num_test_sets = 342
+
+#num_training_sets = 10
+#mini_batch_size = 1
+#random_batch = 1
+#num_test_sets = 10
 
 assert(num_training_sets%mini_batch_size == 0)
 assert(num_test_sets%mini_batch_size == 0)
@@ -49,8 +54,8 @@ test_limit = datasize
 init_learn_rate = 1.e-3
 ema_factor = 0.9#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
-dropout_rate = 0.1
-mem_cells = [100,100,100]
+dropout_rate = 0.0
+mem_cells = [50,50,50]
 
 sdolinit = 1.0e5
 bidaskinit = 0.005
@@ -58,7 +63,7 @@ cominit = 9.99
 
 ###------ build and scale input and output arrays ------###
 iterations = int(1e2)
-x_dim = 2#x_list.shape[1]
+x_dim = 5#x_list.shape[1]
 y_dim = 1
 layer_dims = [x_dim]+mem_cells+[y_dim]
 lstm_net = lstm.LstmNetwork(layer_dims, init_learn_rate/mini_batch_size, ema_factor**(float(mini_batch_size)/float(num_training_sets)), num_training_sets/mini_batch_size, mini_batch_size)
@@ -68,25 +73,66 @@ np.random.seed(85)
 mov1 = 0
 dfarrayclose = np.array(df.loc[:,:,'close']).T
 dfarrayvol = np.array(df.loc[:,:,'volume']).T
-inputData = np.array([dfarrayclose[int(i/(7-fsf)),(fsf+i%(7-fsf))*(history_len+train_len+1):(fsf+i%(7-fsf)+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
-testData = np.array([dfarrayclose[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
-#inputData = np.array([np.array(df.loc[:,:,'close']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-#testData = np.array([np.array(df.loc[:,:,'close']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
-#testData = np.array([np.array(df.loc[:,:,'close']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]])
-inputDataVol = np.array([dfarrayvol[int(i/7),(i%7)*(history_len+train_len+1):(i%7+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
-testDataVol = np.array([dfarrayvol[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])#inputDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+dfarrayopen = np.array(df.loc[:,:,'open']).T
+dfarrayhigh = np.array(df.loc[:,:,'high']).T
+dfarraylow = np.array(df.loc[:,:,'low']).T
+
+#typestr='multi'
+#inputData = np.array([dfarrayclose[int(i/(7-fsf)),(fsf+i%(7-fsf))*(history_len+train_len+1):(fsf+i%(7-fsf)+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
+#testData = np.array([dfarrayclose[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
+##testData = np.array([np.array(df.loc[:,:,'close']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]])
+#inputDataVol = np.array([dfarrayvol[int(i/7),(i%7)*(history_len+train_len+1):(i%7+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
+#testDataVol = np.array([dfarrayvol[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])#inputDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+##testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]])
+#inputDataVol[inputDataVol == 0] = np.amin(inputDataVol[inputDataVol.nonzero()])
+#testDataVol[testDataVol == 0] = np.amin(testDataVol[testDataVol.nonzero()])
+#inputDataOpen = np.array([dfarrayopen[int(i/(7-fsf)),(fsf+i%(7-fsf))*(history_len+train_len+1):(fsf+i%(7-fsf)+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
+#testDataOpen = np.array([dfarrayopen[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
+#inputDataHigh = np.array([dfarrayhigh[int(i/(7-fsf)),(fsf+i%(7-fsf))*(history_len+train_len+1):(fsf+i%(7-fsf)+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
+#testDataHigh = np.array([dfarrayhigh[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
+#inputDataLow = np.array([dfarraylow[int(i/(7-fsf)),(fsf+i%(7-fsf))*(history_len+train_len+1):(fsf+i%(7-fsf)+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
+#testDataLow = np.array([dfarraylow[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
+
+typestr='single'
+inputData = np.array([dfarrayclose[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testData = np.array([dfarrayclose[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+inputDataVol = np.array([dfarrayvol[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testDataVol = np.array([dfarrayvol[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 inputDataVol[inputDataVol == 0] = np.amin(inputDataVol[inputDataVol.nonzero()])
 testDataVol[testDataVol == 0] = np.amin(testDataVol[testDataVol.nonzero()])
-#testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
-#testDataVol = np.array([np.array(df.loc[:,:,'volume']).T[0,test_train_cutoff+train_len:test_train_cutoff+history_len+2*train_len+1+mov1]])
+inputDataOpen = np.array([dfarrayopen[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testDataOpen = np.array([dfarrayopen[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+inputDataHigh = np.array([dfarrayhigh[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testDataHigh = np.array([dfarrayhigh[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+inputDataLow = np.array([dfarraylow[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testDataLow = np.array([dfarraylow[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 
 inputDataDiffQuot = (inputData[:,1:]-inputData[:,:-1])/inputData[:,:-1]
 testDataDiffQuot = (testData[:,1:]-testData[:,:-1])/testData[:,:-1]
 minval = np.amin([np.amin(np.abs(inputDataDiffQuot[np.nonzero(inputDataDiffQuot)])),np.amin(np.abs(testDataDiffQuot[np.nonzero(testDataDiffQuot)]))])/10.0
 inputDataDiff = np.array([np.sign(inputDataDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataDiffQuot/minval)))])
 testDataDiff = np.array([np.sign(testDataDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataDiffQuot/minval)))])
-inputDataDiff = np.concatenate([inputDataDiff,[np.log(inputDataVol[:,1:])]])
-testDataDiff = np.concatenate([testDataDiff,[np.log(testDataVol[:,1:])]])
+"""------"""
+inputDataOpenDiffQuot = (inputDataOpen[:,1:]-inputData[:,:-1])/inputData[:,:-1]
+testDataOpenDiffQuot = (testDataOpen[:,1:]-testData[:,:-1])/testData[:,:-1]
+minval = np.amin([np.amin(np.abs(inputDataOpenDiffQuot[np.nonzero(inputDataOpenDiffQuot)])),np.amin(np.abs(testDataOpenDiffQuot[np.nonzero(testDataOpenDiffQuot)]))])/10.0
+inputDataOpenDiff = np.array([np.sign(inputDataOpenDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataOpenDiffQuot/minval)))])
+testDataOpenDiff = np.array([np.sign(testDataOpenDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataOpenDiffQuot/minval)))])
+"""------"""
+inputDataHighDiffQuot = (inputDataHigh[:,1:]-inputData[:,:-1])/inputData[:,:-1]
+testDataHighDiffQuot = (testDataHigh[:,1:]-testData[:,:-1])/testData[:,:-1]
+minval = np.amin([np.amin(np.abs(inputDataHighDiffQuot[np.nonzero(inputDataHighDiffQuot)])),np.amin(np.abs(testDataHighDiffQuot[np.nonzero(testDataHighDiffQuot)]))])/10.0
+inputDataHighDiff = np.array([np.sign(inputDataHighDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataHighDiffQuot/minval)))])
+testDataHighDiff = np.array([np.sign(testDataHighDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataHighDiffQuot/minval)))])
+"""------"""
+inputDataLowDiffQuot = (inputDataLow[:,1:]-inputData[:,:-1])/inputData[:,:-1]
+testDataLowDiffQuot = (testDataLow[:,1:]-testData[:,:-1])/testData[:,:-1]
+minval = np.amin([np.amin(np.abs(inputDataLowDiffQuot[np.nonzero(inputDataLowDiffQuot)])),np.amin(np.abs(testDataLowDiffQuot[np.nonzero(testDataLowDiffQuot)]))])/10.0
+inputDataLowDiff = np.array([np.sign(inputDataLowDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataLowDiffQuot/minval)))])
+testDataLowDiff = np.array([np.sign(testDataLowDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataLowDiffQuot/minval)))])
+
+inputDataDiff = np.concatenate([inputDataDiff,inputDataOpenDiff,inputDataHighDiff,inputDataLowDiff,[np.log(inputDataVol[:,1:])]])
+testDataDiff = np.concatenate([testDataDiff,testDataOpenDiff,testDataHighDiff,testDataLowDiff,[np.log(testDataVol[:,1:])]])
 
 #dfTrue = loadTrueTestData()    
 #inputTrueData = np.array([np.array(dfTrue).astype(np.float64).T[0,-(history_len+train_len+1+mov1):] for i in range(mini_batch_size)])
@@ -107,7 +153,7 @@ else:
     x_list_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputDataDiff),(1,2,0))
     x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff),(1,2,0))
 #    x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff),(1,2,0))    
-
+print 'xlisttrain',x_list_train.shape,x_list_test.shape
 ## build and scale output and test arrays
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):], sshares=0, sdol=sdolinit, bidask=bidaskinit, com=cominit) for inpt in inputData])[1]
 y_list_full = np.zeros([num_training_sets,history_len+train_len])
@@ -152,7 +198,7 @@ ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-t
 print 'ave yearly test return', (np.average(ideal_test_return)/1.e5)**(365./100*5/7)
 
 ###------ build visualization window and execute training ------###
-wintitle='rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+wintitle='in'+str(x_dim)+typestr+',rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
 win.resize(1575,825)
@@ -367,7 +413,7 @@ def iterate():
         test_loss_list = []
         predTestList = []
         for i in range(num_test_sets/mini_batch_size):
-            for val in np.transpose(x_list_test[i:i+mini_batch_size],(1,0,2)):
+            for val in np.transpose(x_list_test[i*mini_batch_size:i*mini_batch_size+mini_batch_size],(1,0,2)):
                 lstm_net.x_list_add(val, dropout_list_test)#*(((np.random.rand(mini_batch_size)+.5)/50.0).reshape((100,1))), 0.0)
             predTestList.append(rescaleY(scaleFactorAY, scaleFactorBY, lstm_net.getOutData()))
             [test_loss_list.append(np.sum(lstm.loss_func(predTestList[-1][-train_len:,j,0],ytest_list_full[test_set,-train_len:]))) for j,test_set in enumerate(np.arange(i*mini_batch_size,i*mini_batch_size+mini_batch_size))]

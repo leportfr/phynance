@@ -38,24 +38,25 @@ def loadData():
         sp500dict[str(stockSymbol)] = stockData
     sp500 = pd.Panel(sp500dict)
     print sp500
-    df = sp500.loc[:,:,['close','volume']].dropna()
+    df = sp500.loc[:,:,['close','open','high','low','volume']].dropna()
+    print df
     
 #    print 'df',df.loc[:,:,'volume']
     
     return df
     
 def loadDataTest():
-    #locate data files
-    init = [np.random.rand() + 0.5 for i in range(100)]
-    pos = np.random.choice(99,size=10)
-    randarr = np.random.rand(99) + 1./3
+    deltas = 2.0*np.random.rand(342,100,5)-1.0
+    prices = np.zeros((342,4000,5)) + 100.0
+    for stock in range(342):
+        for day in range(4000-1):
+            prices[stock,day+1] = prices[stock,day] + np.sum([deltas[stock,day%(15*j+15),j] for j in range(5)]) + (100.0 - prices[stock,day])*0.01
+            
+    print 'prices created'
     
-    for i in range(3926-len(init)):
-        x=np.average(np.array(init)[i+pos]) * randarr[pos[i%10]]
-        init.append(x)
+    df = pd.Panel(prices,minor_axis=['close','open','high','low','volume'])    
     
-    df = init
-    return np.array(df).reshape([len(df),1])
+    return df
     
 #def loadData2():
 #    #locate data files
