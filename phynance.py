@@ -33,7 +33,7 @@ datasize = df.shape[1]
 history_len = 365
 train_len = 100
 
-fsf = 4
+fsf = 6
 num_training_sets = (7-fsf)*342
 mini_batch_size = 57
 random_batch = 1
@@ -94,14 +94,14 @@ dfarraylow = np.array(df.loc[:,:,'low']).T
 #testDataLow = np.array([dfarraylow[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
 
 typestr='single'
-inputData = np.array([dfarrayclose[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testData = np.array([dfarrayclose[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+inputData = np.array([dfarrayopen[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testData = np.array([dfarrayopen[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 inputDataVol = np.array([dfarrayvol[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
 testDataVol = np.array([dfarrayvol[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 inputDataVol[inputDataVol == 0] = np.amin(inputDataVol[inputDataVol.nonzero()])
 testDataVol[testDataVol == 0] = np.amin(testDataVol[testDataVol.nonzero()])
-inputDataOpen = np.array([dfarrayopen[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testDataOpen = np.array([dfarrayopen[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+inputDataClose = np.array([dfarrayclose[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
+testDataClose = np.array([dfarrayclose[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 inputDataHigh = np.array([dfarrayhigh[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
 testDataHigh = np.array([dfarrayhigh[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
 inputDataLow = np.array([dfarraylow[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
@@ -113,26 +113,26 @@ minval = np.amin([np.amin(np.abs(inputDataDiffQuot[np.nonzero(inputDataDiffQuot)
 inputDataDiff = np.array([np.sign(inputDataDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataDiffQuot/minval)))])
 testDataDiff = np.array([np.sign(testDataDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataDiffQuot/minval)))])
 """------"""
-inputDataOpenDiffQuot = (inputDataOpen[:,1:]-inputData[:,:-1])/inputData[:,:-1]
-testDataOpenDiffQuot = (testDataOpen[:,1:]-testData[:,:-1])/testData[:,:-1]
-minval = np.amin([np.amin(np.abs(inputDataOpenDiffQuot[np.nonzero(inputDataOpenDiffQuot)])),np.amin(np.abs(testDataOpenDiffQuot[np.nonzero(testDataOpenDiffQuot)]))])/10.0
-inputDataOpenDiff = np.array([np.sign(inputDataOpenDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataOpenDiffQuot/minval)))])
-testDataOpenDiff = np.array([np.sign(testDataOpenDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataOpenDiffQuot/minval)))])
+inputDataCloseDiffQuot = (inputDataClose[:,:-1]-inputData[:,:-1])/inputData[:,:-1]
+testDataCloseDiffQuot = (testDataClose[:,:-1]-testData[:,:-1])/testData[:,:-1]
+minval = np.amin([np.amin(np.abs(inputDataCloseDiffQuot[np.nonzero(inputDataCloseDiffQuot)])),np.amin(np.abs(testDataCloseDiffQuot[np.nonzero(testDataCloseDiffQuot)]))])/10.0
+inputDataOpenDiff = np.array([np.sign(inputDataCloseDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataCloseDiffQuot/minval)))])
+testDataOpenDiff = np.array([np.sign(testDataCloseDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataCloseDiffQuot/minval)))])
 """------"""
-inputDataHighDiffQuot = (inputDataHigh[:,1:]-inputData[:,:-1])/inputData[:,:-1]
-testDataHighDiffQuot = (testDataHigh[:,1:]-testData[:,:-1])/testData[:,:-1]
+inputDataHighDiffQuot = (inputDataHigh[:,:-1]-inputData[:,:-1])/inputData[:,:-1]
+testDataHighDiffQuot = (testDataHigh[:,:-1]-testData[:,:-1])/testData[:,:-1]
 minval = np.amin([np.amin(np.abs(inputDataHighDiffQuot[np.nonzero(inputDataHighDiffQuot)])),np.amin(np.abs(testDataHighDiffQuot[np.nonzero(testDataHighDiffQuot)]))])/10.0
 inputDataHighDiff = np.array([np.sign(inputDataHighDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataHighDiffQuot/minval)))])
 testDataHighDiff = np.array([np.sign(testDataHighDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataHighDiffQuot/minval)))])
 """------"""
-inputDataLowDiffQuot = (inputDataLow[:,1:]-inputData[:,:-1])/inputData[:,:-1]
-testDataLowDiffQuot = (testDataLow[:,1:]-testData[:,:-1])/testData[:,:-1]
+inputDataLowDiffQuot = (inputDataLow[:,:-1]-inputData[:,:-1])/inputData[:,:-1]
+testDataLowDiffQuot = (testDataLow[:,:-1]-testData[:,:-1])/testData[:,:-1]
 minval = np.amin([np.amin(np.abs(inputDataLowDiffQuot[np.nonzero(inputDataLowDiffQuot)])),np.amin(np.abs(testDataLowDiffQuot[np.nonzero(testDataLowDiffQuot)]))])/10.0
 inputDataLowDiff = np.array([np.sign(inputDataLowDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataLowDiffQuot/minval)))])
 testDataLowDiff = np.array([np.sign(testDataLowDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataLowDiffQuot/minval)))])
 
-inputDataDiff = np.concatenate([inputDataDiff,inputDataOpenDiff,inputDataHighDiff,inputDataLowDiff,[np.log(inputDataVol[:,1:])]])
-testDataDiff = np.concatenate([testDataDiff,testDataOpenDiff,testDataHighDiff,testDataLowDiff,[np.log(testDataVol[:,1:])]])
+inputDataDiff = np.concatenate([inputDataDiff,inputDataOpenDiff,inputDataHighDiff,inputDataLowDiff,[np.log(inputDataVol[:,:-1])]])
+testDataDiff = np.concatenate([testDataDiff,testDataOpenDiff,testDataHighDiff,testDataLowDiff,[np.log(testDataVol[:,:-1])]])
 
 #dfTrue = loadTrueTestData()    
 #inputTrueData = np.array([np.array(dfTrue).astype(np.float64).T[0,-(history_len+train_len+1+mov1):] for i in range(mini_batch_size)])
