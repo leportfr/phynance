@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import numba
 
 np.random.seed(0)
 
@@ -46,17 +47,22 @@ def loadData():
     return df
     
 def loadDataTest():
-    deltas = 2.0*np.random.rand(342,100,5)-1.0
     prices = np.zeros((342,4000,5)) + 100.0
-    for stock in range(342):
-        for day in range(4000-1):
-            prices[stock,day+1] = prices[stock,day] + np.sum([deltas[stock,day%(15*j+15),j] for j in range(5)]) + (100.0 - prices[stock,day])*0.01
+    createTestData(prices)
             
     print 'prices created'
     
     df = pd.Panel(prices,minor_axis=['close','open','high','low','volume'])    
     
     return df
+
+#@numba.jit(nopython=True)    
+def createTestData(prices):
+    deltas = 2.0*np.random.rand(342,100,5)-1.0
+    for stock in range(342):
+        for day in range(4000-1):
+            prices[stock,day+1] = np.random.normal(loc=1.0,scale=0.1)*prices[stock,day] + np.sum(deltas[stock,day%50]) + (100.0 - prices[stock,day])*0.01
+#            prices[stock,day+1] = np.random.normal(loc=1.0,scale=0.005)*prices[stock,day] + np.sum([deltas[stock,day%(15*j+15),j] for j in range(5)]) + (100.0 - prices[stock,day])*0.01
     
 #def loadData2():
 #    #locate data files

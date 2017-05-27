@@ -6,6 +6,7 @@ import sys
 import pyqtgraph as pg 
 from pyqtgraph.Qt import QtGui, QtCore
 from copy import copy
+from kalman import kalman
 
 from dataload import loadData, loadTrueTestData, loadDataTest
 import lstm
@@ -51,7 +52,7 @@ test_train_cutoff = 2500
 test_limit = datasize
 
 ### set RNN parameters ###
-init_learn_rate = 1.e-3
+init_learn_rate = 1.e-1
 ema_factor = 0.9#(1.-1./num_training_sets*mini_batch_size)
 l2_factor = 0.0
 dropout_rate = 0.0
@@ -76,6 +77,14 @@ dfarrayvol = np.array(df.loc[:,:,'volume']).T
 dfarrayopen = np.array(df.loc[:,:,'open']).T
 dfarrayhigh = np.array(df.loc[:,:,'high']).T
 dfarraylow = np.array(df.loc[:,:,'low']).T
+
+#print 'kalman filtering'
+#dfarrayclose[1] = kalman(dfarrayclose[1])
+#dfarrayopen[1] = kalman(dfarrayopen[1])
+#dfarrayhigh[1] = kalman(dfarrayhigh[1])
+#dfarraylow[1] = kalman(dfarraylow[1])
+#dfarrayvol[1] = kalman(dfarrayvol[1])
+#print 'kalman filtering complete'
 
 #typestr='multi'
 #inputData = np.array([dfarrayclose[int(i/(7-fsf)),(fsf+i%(7-fsf))*(history_len+train_len+1):(fsf+i%(7-fsf)+1)*(history_len+train_len+1)] for i in range(num_training_sets)])
@@ -116,8 +125,8 @@ testDataDiff = np.array([np.sign(testDataDiffQuot)*np.nan_to_num(np.log10(np.abs
 inputDataCloseDiffQuot = (inputDataClose[:,:-1]-inputData[:,:-1])/inputData[:,:-1]
 testDataCloseDiffQuot = (testDataClose[:,:-1]-testData[:,:-1])/testData[:,:-1]
 minval = np.amin([np.amin(np.abs(inputDataCloseDiffQuot[np.nonzero(inputDataCloseDiffQuot)])),np.amin(np.abs(testDataCloseDiffQuot[np.nonzero(testDataCloseDiffQuot)]))])/10.0
-inputDataOpenDiff = np.array([np.sign(inputDataCloseDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataCloseDiffQuot/minval)))])
-testDataOpenDiff = np.array([np.sign(testDataCloseDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataCloseDiffQuot/minval)))])
+inputDataCloseDiff = np.array([np.sign(inputDataCloseDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataCloseDiffQuot/minval)))])
+testDataCloseDiff = np.array([np.sign(testDataCloseDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataCloseDiffQuot/minval)))])
 """------"""
 inputDataHighDiffQuot = (inputDataHigh[:,:-1]-inputData[:,:-1])/inputData[:,:-1]
 testDataHighDiffQuot = (testDataHigh[:,:-1]-testData[:,:-1])/testData[:,:-1]
@@ -131,8 +140,8 @@ minval = np.amin([np.amin(np.abs(inputDataLowDiffQuot[np.nonzero(inputDataLowDif
 inputDataLowDiff = np.array([np.sign(inputDataLowDiffQuot)*np.nan_to_num(np.log10(np.abs(inputDataLowDiffQuot/minval)))])
 testDataLowDiff = np.array([np.sign(testDataLowDiffQuot)*np.nan_to_num(np.log10(np.abs(testDataLowDiffQuot/minval)))])
 
-inputDataDiff = np.concatenate([inputDataDiff,inputDataOpenDiff,inputDataHighDiff,inputDataLowDiff,[np.log(inputDataVol[:,:-1])]])
-testDataDiff = np.concatenate([testDataDiff,testDataOpenDiff,testDataHighDiff,testDataLowDiff,[np.log(testDataVol[:,:-1])]])
+inputDataDiff = np.concatenate([inputDataDiff,inputDataCloseDiff,inputDataHighDiff,inputDataLowDiff,[np.log(inputDataVol[:,:-1])]])
+testDataDiff = np.concatenate([testDataDiff,testDataCloseDiff,testDataHighDiff,testDataLowDiff,[np.log(testDataVol[:,:-1])]])
 
 #dfTrue = loadTrueTestData()    
 #inputTrueData = np.array([np.array(dfTrue).astype(np.float64).T[0,-(history_len+train_len+1+mov1):] for i in range(mini_batch_size)])
@@ -154,6 +163,8 @@ else:
     x_list_test = np.transpose(scaleX(scaleFactorA, scaleFactorB, testDataDiff),(1,2,0))
 #    x_list_true_train = np.transpose(scaleX(scaleFactorA, scaleFactorB, inputTrueDataDiff),(1,2,0))    
 print 'xlisttrain',x_list_train.shape,x_list_test.shape
+
+"""strategy output"""
 ## build and scale output and test arrays
 buySellList = zip(*[strategy.ideal_strategy(inpt[-(history_len+train_len):], sshares=0, sdol=sdolinit, bidask=bidaskinit, com=cominit) for inpt in inputData])[1]
 y_list_full = np.zeros([num_training_sets,history_len+train_len])
@@ -198,7 +209,7 @@ ideal_test_return = [strategy.trade(testData[i,-train_len:],ytest_list_full[i,-t
 print 'ave yearly test return', (np.average(ideal_test_return)/1.e5)**(365./100*5/7)
 
 ###------ build visualization window and execute training ------###
-wintitle='in'+str(x_dim)+typestr+',rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
+wintitle='ba'+str(bidaskinit)+',in'+str(x_dim)+typestr+',rnlogqotin1scl,xyrg='+str(scalerangeX)+','+str(scalerangeY)+',lf='+str(init_learn_rate)+',mem='+str(mem_cells)+','+str(history_len)+'-'+str(train_len)+',ema_factor='+str(ema_factor)+',l2='+str(l2_factor)+',dr='+str(dropout_rate)+',samps='+str(num_training_sets)+',mbsize='+str(mini_batch_size)+'ran'+str(random_batch)
 app = QtGui.QApplication([])
 win = pg.GraphicsWindow(title=wintitle)
 win.resize(1575,825)
