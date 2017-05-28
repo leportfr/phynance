@@ -186,13 +186,13 @@ class OutNode:
 #        np.random.shuffle(dropout_list)
         self.h = h*dropout_list
         
-#        self.state.y = np.tanh(np.dot(self.param.w, self.h.T).T + self.param.b)
+        self.state.y = np.tanh(np.dot(self.param.w, self.h.T).T + self.param.b)
 #        self.state.y = expit(np.dot(self.param.w, self.h.T).T + self.param.b)
-        self.state.y = np.clip(np.dot(self.param.w, self.h.T).T + self.param.b, -1.0, 1.0)
+#        self.state.y = np.clip(np.dot(self.param.w, self.h.T).T + self.param.b, -1.0, 1.0)
         
     def top_diff_is(self, top_diff_y):
-        dy_input = top_diff_y * ((self.state.y * np.sign(-top_diff_y)) < 1.0).astype(float)
-#        dy_input = (1. - self.state.y * self.state.y) * top_diff_y
+#        dy_input = top_diff_y * ((self.state.y * np.sign(-top_diff_y)) < 1.0).astype(float)
+        dy_input = (1. - self.state.y * self.state.y) * top_diff_y
 #        dy_input = (1. - self.state.y) * self.state.y * top_diff_y
 
         outer_add(dy_input, self.h, self.param.w_diff, self.param.b_diff)
@@ -273,21 +273,20 @@ class LstmNetwork():
 #        self.gOuter1.gCompile()
 #        self.gOuter2.gCompile()
 
-    def y_list_is(self, drvs):
+    def y_list_is(self, y_list):
         """
         Updates diffs by setting target sequence 
         with corresponding loss layer. 
         Will *NOT* update parameters.  To update parameters,
         call self.lstm_param.apply_diff()
         """
-        assert len(drvs) <= len(self.x_list)
+        assert len(y_list) <= len(self.x_list)
         # here s is not affecting loss due to h(t+1), hence we set equal to zero
-        idy = len(drvs) - 1
+        idy = len(y_list) - 1
         idx = len(self.x_list) - 1
         # calculate loss from out_node and backpropagate
-#        loss = np.average(loss_func(self.out_node_list[idx].state.y, y_list[idy]),axis=0)        
-        diff_y = drvs[idy]#bottom_diff(self.out_node_list[idx].state.y, y_list[idy]) 
-#        print diff_y
+        loss = np.average(loss_func(self.out_node_list[idx].state.y, y_list[idy]),axis=0)        
+        diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idy]) 
         self.out_node_list[idx].top_diff_is(diff_y)   
         # calculate diff for lstm nodes and backpropagate
         diff_h = self.out_node_list[idx].state.bottom_diff_h
@@ -305,7 +304,7 @@ class LstmNetwork():
         while idx >= 0:
             if idy >= 0:
 #                loss += np.average(loss_func(self.out_node_list[idx].state.y, y_list[idy]),axis=0)
-                diff_y = drvs[idy]#bottom_diff(self.out_node_list[idx].state.y, y_list[idy])  
+                diff_y = bottom_diff(self.out_node_list[idx].state.y, y_list[idy])  
                 self.out_node_list[idx].top_diff_is(diff_y)
                 diff_h = self.out_node_list[idx].state.bottom_diff_h
             else:
@@ -322,7 +321,7 @@ class LstmNetwork():
             idy -= 1
 #            print diff_h2[np.where(diff_h2>1.)], diff_s2[np.where(diff_s2>1.)], diff_h[np.where(diff_h>1.)], diff_s[np.where(diff_s>1.)]
 
-#        return loss
+        return loss
 
     def x_list_clear(self):
         self.x_list = []
