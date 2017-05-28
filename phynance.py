@@ -33,7 +33,7 @@ datasize = df.shape[1]
 history_len = 365
 train_len = 100
 
-fsf = 4
+fsf = 6
 num_training_sets = (7-fsf)*342
 mini_batch_size = 57
 random_batch = 1
@@ -94,18 +94,20 @@ dfarraylow = np.array(df.loc[:,:,'low']).T
 #testDataLow = np.array([dfarraylow[i,7*(history_len+train_len+1):8*(history_len+train_len+1)] for i in range(num_test_sets)])
 
 typestr='single'
-inputData = np.array([dfarrayclose[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testData = np.array([dfarrayclose[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
-inputDataVol = np.array([dfarrayvol[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testDataVol = np.array([dfarrayvol[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+train_choice = np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)
+test_choice = np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)
+inputData = np.array([dfarrayclose[1,i:i+history_len+train_len+1+mov1] for i in train_choice])
+testData = np.array([dfarrayclose[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in test_choice])
+inputDataVol = np.array([dfarrayvol[1,i:i+history_len+train_len+1+mov1] for i in train_choice])
+testDataVol = np.array([dfarrayvol[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in test_choice])
 inputDataVol[inputDataVol == 0] = np.amin(inputDataVol[inputDataVol.nonzero()])
 testDataVol[testDataVol == 0] = np.amin(testDataVol[testDataVol.nonzero()])
-inputDataOpen = np.array([dfarrayopen[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testDataOpen = np.array([dfarrayopen[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
-inputDataHigh = np.array([dfarrayhigh[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testDataHigh = np.array([dfarrayhigh[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
-inputDataLow = np.array([dfarraylow[1,i:i+history_len+train_len+1+mov1] for i in np.random.choice(test_train_cutoff,size=num_training_sets,replace=False)])
-testDataLow = np.array([dfarraylow[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in np.random.choice(test_limit-(test_train_cutoff+2*history_len+2*train_len+2+2*mov1),size=num_test_sets,replace=False)])
+inputDataOpen = np.array([dfarrayopen[1,i:i+history_len+train_len+1+mov1] for i in train_choice])
+testDataOpen = np.array([dfarrayopen[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in test_choice])
+inputDataHigh = np.array([dfarrayhigh[1,i:i+history_len+train_len+1+mov1] for i in train_choice])
+testDataHigh = np.array([dfarrayhigh[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in test_choice])
+inputDataLow = np.array([dfarraylow[1,i:i+history_len+train_len+1+mov1] for i in train_choice])
+testDataLow = np.array([dfarraylow[1,i+test_train_cutoff+history_len+train_len+1+mov1:i+test_train_cutoff+2*history_len+2*train_len+2+2*mov1] for i in test_choice])
 
 inputDataDiffQuot = (inputData[:,1:]-inputData[:,:-1])/inputData[:,:-1]
 testDataDiffQuot = (testData[:,1:]-testData[:,:-1])/testData[:,:-1]
